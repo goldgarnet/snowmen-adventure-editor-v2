@@ -28,10 +28,12 @@ export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edge
   }, []);
 
   // Minimum cell size 16, maximum 96. Subtract a tiny margin for borders.
+  // Cap max cell size to 72 so small maps don't dominate the screen.
+  // Also reserve a comfortable outer margin (~12% of the smaller box dimension).
   const cellSize = (level.width > 0 && level.height > 0 && box.w > 0 && box.h > 0)
-    ? Math.max(16, Math.min(96, Math.floor(Math.min(
-        (box.w - 6) / level.width,
-        (box.h - 6) / level.height
+    ? Math.max(16, Math.min(72, Math.floor(Math.min(
+        (box.w * 0.92) / level.width,
+        (box.h * 0.92) / level.height
       ))))
     : 40;
 

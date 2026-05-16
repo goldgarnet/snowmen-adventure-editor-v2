@@ -95,6 +95,10 @@ export default function Simulator({ gameState, setGameState }: SimulatorProps) {
       </div>
 
       <div className="sim-body">
+        <div className="sim-grid-area">
+          <Grid level={gameState.level} highlightPlayer />
+        </div>
+
         <div className="sim-touch-pad">
           <div className="dpad">
             <button className="dpad-btn dpad-up" onClick={() => handleMove('up')} disabled={disabled} aria-label="위">▲</button>
@@ -107,10 +111,6 @@ export default function Simulator({ gameState, setGameState }: SimulatorProps) {
             <button onClick={handleUndo} disabled={gameState.history.length === 0}>↩ 되돌리기</button>
             <button onClick={handleReset} disabled={gameState.history.length === 0}>⟳ 초기화</button>
           </div>
-        </div>
-
-        <div className="sim-grid-area">
-          <Grid level={gameState.level} highlightPlayer />
         </div>
       </div>
 
