@@ -155,7 +155,3 @@
   width: 24%;
 }
 
-/* When in edge mode, dim the cell interior cursor */
-.grid.edge-mode .grid-cell {
-  cursor: default;
-}

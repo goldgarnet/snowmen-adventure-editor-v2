@@ -90,8 +90,8 @@ export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edge
             <div
               key={`${row}-${col}`}
               className={tileClasses}
-              onMouseDown={() => !edgeMode && handleMouseDown(row, col)}
-              onMouseEnter={() => !edgeMode && handleMouseEnter(row, col)}
+              onMouseDown={() => handleMouseDown(row, col)}
+              onMouseEnter={() => handleMouseEnter(row, col)}
               style={{ width: cellSize, height: cellSize, position: 'relative' }}
             >
               {tile.isGoal && <GoalOverlay size={cellSize} />}
