@@ -300,7 +300,12 @@ function resolvePush(
 
     // ===== A+B+C all exist, ps=3 =====
     if (a.size === 1 && b.size === 1 && c.size === 1 && !a.isWall && !b.isWall && !c.isWall) {
-      if (posC && aCanMoveIntoB && canMoveObj(level, posB, dir) && canMoveObj(level, posC, dir)) {
+      // For chain pushes, B doesn't need its next cell empty NOW (C will move out of
+      // the way first). Only check arch/tunnel passability for B, and let canMoveObj
+      // handle C → D (where D must be in-bounds and empty).
+      const objB = level.objects[posB.row][posB.col];
+      const bCanPass = !!objB && canMoveTo(level, posB, dir, objB);
+      if (posC && aCanMoveIntoB && bCanPass && canMoveObj(level, posC, dir)) {
         return doMove3(level, playerPos, posA, posB, posC, dir);
       }
     }
