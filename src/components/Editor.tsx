@@ -264,6 +264,9 @@ export default function Editor({ level, setLevel }: EditorProps) {
     { id: 'snowballSmall', label: '작은 눈덩이', emoji: '🔵' },
     { id: 'block', label: '블록', emoji: '📦' },
     { id: 'tree', label: '나무', emoji: '🌲' },
+  ];
+
+  const snowmanTools: { id: EditorTool; label: string; emoji: string }[] = [
     { id: 'snowman1', label: '눈사람 1', emoji: '⛄' },
     { id: 'snowman2', label: '눈사람 2', emoji: '⛄' },
     { id: 'snowman3', label: '눈사람 3', emoji: '⛄' },
@@ -327,6 +330,15 @@ export default function Editor({ level, setLevel }: EditorProps) {
           <h3>오브젝트</h3>
           <div className="tool-group-2col">
             {objectTools.map((tool) => (
+              <button key={tool.id}
+                className={`tool-btn ${selectedTool === tool.id ? 'active' : ''}`}
+                onClick={() => setSelectedTool(tool.id)}>
+                <span className="tool-emoji">{tool.emoji}</span>{tool.label}
+              </button>
+            ))}
+          </div>
+          <div className="tool-group-3col" style={{ marginTop: 4 }}>
+            {snowmanTools.map((tool) => (
               <button key={tool.id}
                 className={`tool-btn ${selectedTool === tool.id ? 'active' : ''}`}
                 onClick={() => setSelectedTool(tool.id)}>
