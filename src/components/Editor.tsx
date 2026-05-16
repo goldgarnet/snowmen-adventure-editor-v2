@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Level, SunDirection } from '../types';
 import { createDefaultTile, createLevel, cloneLevel, deserializeLevel } from '../utils/level';
 import { encodeLevelCode, decodeLevelCode } from '../utils/levelCode';
@@ -36,6 +36,25 @@ export default function Editor({ level, setLevel }: EditorProps) {
   const [jsonText, setJsonText] = useState('');
   const [copyMsg, setCopyMsg] = useState(false);
   const dragLevelRef = useRef<Level | null>(null);
+
+  // Local string state for width/height inputs so users can clear them.
+  const [widthInput, setWidthInput] = useState<string>(level.width.toString());
+  const [heightInput, setHeightInput] = useState<string>(level.height.toString());
+  useEffect(() => { setWidthInput(level.width.toString()); }, [level.width]);
+  useEffect(() => { setHeightInput(level.height.toString()); }, [level.height]);
+
+  const handleWidthChange = (raw: string) => {
+    setWidthInput(raw);
+    if (raw === '') { resizeMap(0, level.height); return; }
+    const n = parseInt(raw, 10);
+    if (!isNaN(n)) resizeMap(n, level.height);
+  };
+  const handleHeightChange = (raw: string) => {
+    setHeightInput(raw);
+    if (raw === '') { resizeMap(level.width, 0); return; }
+    const n = parseInt(raw, 10);
+    if (!isNaN(n)) resizeMap(level.width, n);
+  };
 
   const handleCellClick = (row: number, col: number) => {
     const newLevel = cloneLevel(level);
@@ -141,8 +160,8 @@ export default function Editor({ level, setLevel }: EditorProps) {
   };
 
   const resizeMap = (newWidth: number, newHeight: number) => {
-    const w = Math.max(2, Math.min(20, newWidth));
-    const h = Math.max(2, Math.min(20, newHeight));
+    const w = Math.max(0, Math.min(30, newWidth));
+    const h = Math.max(0, Math.min(30, newHeight));
     const newLevel: Level = {
       width: w,
       height: h,
@@ -243,13 +262,13 @@ export default function Editor({ level, setLevel }: EditorProps) {
           <div className="size-controls">
             <label>
               가로:
-              <input type="number" min={2} max={20} value={level.width}
-                onChange={(e) => resizeMap(Number(e.target.value), level.height)} />
+              <input type="number" min={0} max={30} value={widthInput}
+                onChange={(e) => handleWidthChange(e.target.value)} />
             </label>
             <label>
               세로:
-              <input type="number" min={2} max={20} value={level.height}
-                onChange={(e) => resizeMap(level.width, Number(e.target.value))} />
+              <input type="number" min={0} max={30} value={heightInput}
+                onChange={(e) => handleHeightChange(e.target.value)} />
             </label>
           </div>
           <button className={`shadow-toggle ${level.hasShadow ? 'on' : 'off'}`}

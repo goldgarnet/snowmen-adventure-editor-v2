@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Level } from '../types';
 import './Grid.css';
 
@@ -13,11 +13,27 @@ interface GridProps {
 
 export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edgeMode, highlightPlayer }: GridProps) {
   const [isDragging, setIsDragging] = useState(false);
-  // Cell size scaled +20% from previous (500 -> 600 base, 60 -> 72 cap)
-  const cellSize = Math.min(
-    600 / Math.max(level.width, level.height),
-    72
-  );
+
+  // Responsive cell sizing: measure the wrapper and fill available space.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    if (!wrapperRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const cr = entries[0].contentRect;
+      setBox({ w: cr.width, h: cr.height });
+    });
+    ro.observe(wrapperRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Minimum cell size 16, maximum 96. Subtract a tiny margin for borders.
+  const cellSize = (level.width > 0 && level.height > 0 && box.w > 0 && box.h > 0)
+    ? Math.max(16, Math.min(96, Math.floor(Math.min(
+        (box.w - 6) / level.width,
+        (box.h - 6) / level.height
+      ))))
+    : 40;
 
   const handleMouseDown = useCallback((row: number, col: number) => {
     setIsDragging(true);
@@ -34,7 +50,12 @@ export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edge
     setIsDragging(false);
   }, []);
 
+  if (level.width === 0 || level.height === 0) {
+    return <div ref={wrapperRef} className="grid-wrapper" />;
+  }
+
   return (
+    <div ref={wrapperRef} className="grid-wrapper">
     <div
       className={`grid ${edgeMode ? 'edge-mode' : ''}`}
       style={{
@@ -113,6 +134,7 @@ export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edge
           );
         })
       )}
+    </div>
     </div>
   );
 }
