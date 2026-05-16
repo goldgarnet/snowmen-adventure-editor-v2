@@ -10,10 +10,12 @@ export interface Tile {
   isColumnArch: boolean;     // legacy: now called "column tunnel" (세로 터널)
   isGoal: boolean;
   // Edge arches: stored only on top/left edges of a tile to avoid duplication.
+  // Value is the maximum object size that can pass: 1 = height-1 arch, 2 = height-2 arch.
+  // Undefined / 0 = no arch.
   // - edgeArchTop: arch on the edge between this tile and the tile above (blocks vertical movement)
   // - edgeArchLeft: arch on the edge between this tile and the tile to the left (blocks horizontal movement)
-  edgeArchTop?: boolean;
-  edgeArchLeft?: boolean;
+  edgeArchTop?: number;
+  edgeArchLeft?: number;
 }
 
 export interface GameObject {

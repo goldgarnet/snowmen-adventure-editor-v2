@@ -27,9 +27,8 @@ export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edge
     return () => ro.disconnect();
   }, []);
 
-  // Minimum cell size 16, maximum 96. Subtract a tiny margin for borders.
   // Cap max cell size to 72 so small maps don't dominate the screen.
-  // Also reserve a comfortable outer margin (~12% of the smaller box dimension).
+  // Also reserve a comfortable outer margin (~8% of the smaller box dimension).
   const cellSize = (level.width > 0 && level.height > 0 && box.w > 0 && box.h > 0)
     ? Math.max(16, Math.min(72, Math.floor(Math.min(
         (box.w * 0.92) / level.width,
@@ -56,115 +55,191 @@ export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edge
     return <div ref={wrapperRef} className="grid-wrapper" />;
   }
 
+  const gridW = cellSize * level.width;
+  const gridH = cellSize * level.height;
+
+  // Edge hit dimensions. Strip is thick perpendicular to the edge for easy
+  // clicking, but trimmed at both ends so it never enters the corner squares
+  // shared with perpendicular edges — preventing the "selecting corners" feel.
+  const hitThick = Math.max(14, Math.min(22, Math.round(cellSize * 0.3)));
+  const cornerTrim = hitThick / 2 + 2;
+  const archThick = Math.max(5, Math.round(cellSize * 0.16));
+
+  // Enumerate interior edges.
+  const horzEdges: { row: number; col: number; level: number }[] = [];
+  for (let r = 1; r < level.height; r++) {
+    for (let c = 0; c < level.width; c++) {
+      horzEdges.push({ row: r, col: c, level: level.tiles[r][c].edgeArchTop ?? 0 });
+    }
+  }
+  const vertEdges: { row: number; col: number; level: number }[] = [];
+  for (let r = 0; r < level.height; r++) {
+    for (let c = 1; c < level.width; c++) {
+      vertEdges.push({ row: r, col: c, level: level.tiles[r][c].edgeArchLeft ?? 0 });
+    }
+  }
+
   return (
     <div ref={wrapperRef} className="grid-wrapper">
-    <div
-      className={`grid ${edgeMode ? 'edge-mode' : ''}`}
-      style={{
-        gridTemplateColumns: `repeat(${level.width}, ${cellSize}px)`,
-        gridTemplateRows: `repeat(${level.height}, ${cellSize}px)`,
-      }}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-    >
-      {Array.from({ length: level.height }, (_, row) =>
-        Array.from({ length: level.width }, (_, col) => {
-          const tile = level.tiles[row][col];
-          const obj = level.objects[row][col];
+      <div className="grid-stack" style={{ position: 'relative', width: gridW, height: gridH }}>
+        <div
+          className={`grid ${edgeMode ? 'edge-mode' : ''}`}
+          style={{
+            gridTemplateColumns: `repeat(${level.width}, ${cellSize}px)`,
+            gridTemplateRows: `repeat(${level.height}, ${cellSize}px)`,
+          }}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          {Array.from({ length: level.height }, (_, row) =>
+            Array.from({ length: level.width }, (_, col) => {
+              const tile = level.tiles[row][col];
+              const obj = level.objects[row][col];
 
-          const tileClasses = [
-            'grid-cell',
-            tile.isWarm ? 'warm' : 'cool',
-            tile.isShade ? 'shaded' : '',
-            tile.isFlake ? 'flake' : '',
-            tile.isGoal ? 'goal' : '',
-            tile.isRowArch ? 'row-arch' : '',
-            tile.isColumnArch ? 'col-arch' : '',
-          ].filter(Boolean).join(' ');
+              const tileClasses = [
+                'grid-cell',
+                tile.isWarm ? 'warm' : 'cool',
+                tile.isShade ? 'shaded' : '',
+                tile.isFlake ? 'flake' : '',
+                tile.isGoal ? 'goal' : '',
+                tile.isRowArch ? 'row-arch' : '',
+                tile.isColumnArch ? 'col-arch' : '',
+              ].filter(Boolean).join(' ');
 
-          // Determine which edges of this cell carry arches (top/left only stored here)
-          const topArch = !!tile.edgeArchTop;
-          const leftArch = !!tile.edgeArchLeft;
-
-          return (
-            <div
-              key={`${row}-${col}`}
-              className={tileClasses}
-              onMouseDown={() => handleMouseDown(row, col)}
-              onMouseEnter={() => handleMouseEnter(row, col)}
-              style={{ width: cellSize, height: cellSize, position: 'relative' }}
-            >
-              {tile.isGoal && <GoalOverlay size={cellSize} />}
-              {tile.isFlake && !obj && <FlakeOverlay size={cellSize} />}
-              {(tile.isRowArch || tile.isColumnArch) && (
-                <TunnelOverlay size={cellSize} isRow={tile.isRowArch} />
-              )}
-              {obj && (
-                <div className={`object obj-${obj.type} size-${obj.size} ${highlightPlayer && obj.type === 'player' ? 'player-highlight' : ''} ${obj.isMelting ? 'melting' : ''}`}>
-                  {renderObject(obj, cellSize)}
+              return (
+                <div
+                  key={`${row}-${col}`}
+                  className={tileClasses}
+                  onMouseDown={() => handleMouseDown(row, col)}
+                  onMouseEnter={() => handleMouseEnter(row, col)}
+                  style={{ width: cellSize, height: cellSize, position: 'relative' }}
+                >
+                  {tile.isGoal && <GoalOverlay size={cellSize} />}
+                  {tile.isFlake && !obj && <FlakeOverlay size={cellSize} />}
+                  {(tile.isRowArch || tile.isColumnArch) && (
+                    <TunnelOverlay size={cellSize} isRow={tile.isRowArch} />
+                  )}
+                  {obj && (
+                    <div className={`object obj-${obj.type} size-${obj.size} ${highlightPlayer && obj.type === 'player' ? 'player-highlight' : ''} ${obj.isMelting ? 'melting' : ''}`}>
+                      {renderObject(obj, cellSize)}
+                    </div>
+                  )}
                 </div>
-              )}
+              );
+            })
+          )}
+        </div>
 
-              {/* Edge arch rendering (top edge of this cell, left edge of this cell) */}
-              {topArch && row > 0 && <EdgeArchTop cellSize={cellSize} />}
-              {leftArch && col > 0 && <EdgeArchLeft cellSize={cellSize} />}
+        {/* Arch visuals overlay (absolute pixel positioning over the grid) */}
+        <div className="edge-overlay" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {horzEdges.filter(e => e.level > 0).map(e => (
+            <ArchSegment key={`ah-${e.row}-${e.col}`}
+              left={e.col * cellSize}
+              top={e.row * cellSize - archThick / 2}
+              width={cellSize}
+              height={archThick}
+              level={e.level}
+              orientation="horizontal" />
+          ))}
+          {vertEdges.filter(e => e.level > 0).map(e => (
+            <ArchSegment key={`av-${e.row}-${e.col}`}
+              left={e.col * cellSize - archThick / 2}
+              top={e.row * cellSize}
+              width={archThick}
+              height={cellSize}
+              level={e.level}
+              orientation="vertical" />
+          ))}
+        </div>
 
-              {/* Edge click strips (in edge-mode) */}
-              {edgeMode && (
-                <>
-                  {row > 0 && (
-                    <div className="edge-hit edge-hit-top"
-                      onClick={(e) => { e.stopPropagation(); onEdgeClick?.(row, col, 'top'); }} />
-                  )}
-                  {col > 0 && (
-                    <div className="edge-hit edge-hit-left"
-                      onClick={(e) => { e.stopPropagation(); onEdgeClick?.(row, col, 'left'); }} />
-                  )}
-                  {/* Bottom edge = top edge of (row+1, col) */}
-                  {row < level.height - 1 && (
-                    <div className="edge-hit edge-hit-bottom"
-                      onClick={(e) => { e.stopPropagation(); onEdgeClick?.(row + 1, col, 'top'); }} />
-                  )}
-                  {/* Right edge = left edge of (row, col+1) */}
-                  {col < level.width - 1 && (
-                    <div className="edge-hit edge-hit-right"
-                      onClick={(e) => { e.stopPropagation(); onEdgeClick?.(row, col + 1, 'left'); }} />
-                  )}
-                </>
-              )}
-            </div>
-          );
-        })
+        {/* Edge hit strips — strictly on edges, never on corners */}
+        {edgeMode && (
+          <div className="edge-hits" style={{ position: 'absolute', inset: 0 }}>
+            {horzEdges.map(e => (
+              <div key={`hh-${e.row}-${e.col}`} className="edge-hit edge-hit-h"
+                style={{
+                  position: 'absolute',
+                  left: e.col * cellSize + cornerTrim,
+                  top: e.row * cellSize - hitThick / 2,
+                  width: Math.max(0, cellSize - 2 * cornerTrim),
+                  height: hitThick,
+                }}
+                onClick={(ev) => { ev.stopPropagation(); onEdgeClick?.(e.row, e.col, 'top'); }} />
+            ))}
+            {vertEdges.map(e => (
+              <div key={`vh-${e.row}-${e.col}`} className="edge-hit edge-hit-v"
+                style={{
+                  position: 'absolute',
+                  left: e.col * cellSize - hitThick / 2,
+                  top: e.row * cellSize + cornerTrim,
+                  width: hitThick,
+                  height: Math.max(0, cellSize - 2 * cornerTrim),
+                }}
+                onClick={(ev) => { ev.stopPropagation(); onEdgeClick?.(e.row, e.col, 'left'); }} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ArchSegment({ left, top, width, height, level, orientation }: {
+  left: number; top: number; width: number; height: number; level: number; orientation: 'horizontal' | 'vertical';
+}) {
+  // Height-1 arch: gold single bar. Height-2 arch: deeper copper double bar so
+  // it reads as taller / more permissive at a glance.
+  const isH = orientation === 'horizontal';
+  const barColor = level === 2 ? '#d96b3e' : '#c9a44a';
+  const capColor = level === 2 ? '#7a3a1c' : '#8a6a26';
+  return (
+    <div style={{ position: 'absolute', left, top, width, height, pointerEvents: 'none' }}>
+      <div style={{
+        position: 'absolute',
+        left: isH ? '4%' : '50%',
+        top: isH ? '50%' : '4%',
+        transform: isH ? 'translateY(-50%)' : 'translateX(-50%)',
+        width: isH ? '92%' : '40%',
+        height: isH ? '40%' : '92%',
+        background: barColor,
+        borderRadius: 2,
+      }} />
+      {level === 2 && (
+        <div style={{
+          position: 'absolute',
+          left: isH ? '4%' : '50%',
+          top: isH ? '50%' : '4%',
+          transform: isH
+            ? 'translate(0, calc(-50% - 4px))'
+            : 'translate(calc(-50% + 4px), 0)',
+          width: isH ? '92%' : '24%',
+          height: isH ? '24%' : '92%',
+          background: barColor,
+          opacity: 0.65,
+          borderRadius: 2,
+        }} />
       )}
+      <div style={{
+        position: 'absolute',
+        left: isH ? 0 : '50%',
+        top: isH ? '50%' : 0,
+        transform: isH ? 'translateY(-50%)' : 'translateX(-50%)',
+        width: isH ? '5%' : '60%',
+        height: isH ? '60%' : '5%',
+        background: capColor,
+        borderRadius: 1,
+      }} />
+      <div style={{
+        position: 'absolute',
+        left: isH ? '95%' : '50%',
+        top: isH ? '50%' : '95%',
+        transform: isH ? 'translateY(-50%)' : 'translateX(-50%)',
+        width: isH ? '5%' : '60%',
+        height: isH ? '60%' : '5%',
+        background: capColor,
+        borderRadius: 1,
+      }} />
     </div>
-    </div>
-  );
-}
-
-function EdgeArchTop({ cellSize }: { cellSize: number }) {
-  // Horizontal edge: the visual sits straddling the top boundary of this cell
-  const t = Math.max(4, cellSize * 0.12);
-  return (
-    <svg className="edge-arch edge-arch-top" width={cellSize} height={t}
-      style={{ position: 'absolute', top: -t / 2, left: 0, pointerEvents: 'none', zIndex: 4 }}
-      viewBox={`0 0 40 ${t}`} preserveAspectRatio="none">
-      <rect x="2" y={t / 2 - 1.6} width="36" height="3.2" fill="#c9a44a" rx="1.2" />
-      <rect x="0" y={t / 2 - 1.8} width="3" height="3.6" fill="#8a6a26" rx="0.8" />
-      <rect x="37" y={t / 2 - 1.8} width="3" height="3.6" fill="#8a6a26" rx="0.8" />
-    </svg>
-  );
-}
-
-function EdgeArchLeft({ cellSize }: { cellSize: number }) {
-  const t = Math.max(4, cellSize * 0.12);
-  return (
-    <svg className="edge-arch edge-arch-left" width={t} height={cellSize}
-      style={{ position: 'absolute', top: 0, left: -t / 2, pointerEvents: 'none', zIndex: 4 }}
-      viewBox={`0 0 ${t} 40`} preserveAspectRatio="none">
-      <rect x={t / 2 - 1.6} y="2" width="3.2" height="36" fill="#c9a44a" rx="1.2" />
-      <rect x={t / 2 - 1.8} y="0" width="3.6" height="3" fill="#8a6a26" rx="0.8" />
-      <rect x={t / 2 - 1.8} y="37" width="3.6" height="3" fill="#8a6a26" rx="0.8" />
-    </svg>
   );
 }
 

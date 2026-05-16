@@ -3,11 +3,14 @@ import { Level, Tile, GameObject, SunDirection } from '../types';
 const BASE62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 const SUN_DIRS: SunDirection[] = ['left', 'right', 'up', 'down'];
 
-// v2 marker: 3 bits immediately after sentinel.
+// Version marker: 3 bits immediately after sentinel.
 // In v1 codes the bits immediately after the sentinel are width-2's high bits
-// (width is 2..20 → width-2 is 0..18 → high 3 bits ∈ 0b000..0b100), so 0b111
-// never appears in v1 and can be used as a safe version flag.
+// (width is 2..20 → width-2 is 0..18 → high 3 bits ∈ 0b000..0b100), so neither
+// 0b111 nor 0b110 ever appear in v1 codes and can be used as version flags.
+//   0b111 = v2 (boolean edge arches)
+//   0b110 = v3 (2-bit edge arch levels: 0/1/2)
 const V2_MARKER = 0b111;
+const V3_MARKER = 0b110;
 
 function pushBits(bits: number[], value: number, count: number): void {
   for (let i = count - 1; i >= 0; i--) {
@@ -23,14 +26,15 @@ function readBits(bits: number[], offset: number, count: number): number {
   return val;
 }
 
-function encodeTileV2(bits: number[], tile: Tile): void {
+function encodeTileV3(bits: number[], tile: Tile): void {
   pushBits(bits, tile.isWarm ? 1 : 0, 1);
   pushBits(bits, tile.isFlake ? 1 : 0, 1);
   pushBits(bits, tile.isGoal ? 1 : 0, 1);
   pushBits(bits, tile.isRowArch ? 1 : 0, 1);
   pushBits(bits, tile.isColumnArch ? 1 : 0, 1);
-  pushBits(bits, tile.edgeArchTop ? 1 : 0, 1);
-  pushBits(bits, tile.edgeArchLeft ? 1 : 0, 1);
+  // 2 bits per edge field: 0 = none, 1 = height-1 arch, 2 = height-2 arch.
+  pushBits(bits, Math.min(3, Math.max(0, tile.edgeArchTop ?? 0)), 2);
+  pushBits(bits, Math.min(3, Math.max(0, tile.edgeArchLeft ?? 0)), 2);
 }
 
 function encodeObject(bits: number[], obj: GameObject | null): void {
@@ -91,8 +95,8 @@ export function encodeLevelCode(level: Level): string {
 
   // Sentinel
   bits.push(1);
-  // v2 marker
-  pushBits(bits, V2_MARKER, 3);
+  // v3 marker
+  pushBits(bits, V3_MARKER, 3);
 
   pushBits(bits, level.width - 2, 5);
   pushBits(bits, level.height - 2, 5);
@@ -101,7 +105,7 @@ export function encodeLevelCode(level: Level): string {
 
   for (let r = 0; r < level.height; r++) {
     for (let c = 0; c < level.width; c++) {
-      encodeTileV2(bits, level.tiles[r][c]);
+      encodeTileV3(bits, level.tiles[r][c]);
       encodeObject(bits, level.objects[r][c]);
     }
   }
@@ -118,20 +122,22 @@ export function decodeLevelCode(code: string): Level | null {
     if (sentinel < 0) return null;
     let pos = sentinel + 1;
 
-    // Detect v2 by checking 3-bit marker
+    // Detect version by checking 3-bit marker
     const marker = readBits(bits, pos, 3);
+    const isV3 = marker === V3_MARKER;
     const isV2 = marker === V2_MARKER;
-    if (isV2) pos += 3;
+    const isV2OrLater = isV2 || isV3;
+    if (isV2OrLater) pos += 3;
 
     const width = readBits(bits, pos, 5) + 2; pos += 5;
     const height = readBits(bits, pos, 5) + 2; pos += 5;
     const sunIdx = readBits(bits, pos, 2); pos += 2;
     const sunDirection = SUN_DIRS[sunIdx] ?? 'left';
 
-    if (width < 2 || width > 20 || height < 2 || height > 20) return null;
+    if (width < 2 || width > 33 || height < 2 || height > 33) return null;
 
     let hasShadow = true;
-    if (isV2) {
+    if (isV2OrLater) {
       hasShadow = readBits(bits, pos, 1) === 1; pos += 1;
     }
 
@@ -148,11 +154,15 @@ export function decodeLevelCode(code: string): Level | null {
         const isRowArch = readBits(bits, pos, 1) === 1; pos += 1;
         const isColumnArch = readBits(bits, pos, 1) === 1; pos += 1;
 
-        let edgeArchTop = false;
-        let edgeArchLeft = false;
-        if (isV2) {
-          edgeArchTop = readBits(bits, pos, 1) === 1; pos += 1;
-          edgeArchLeft = readBits(bits, pos, 1) === 1; pos += 1;
+        let edgeArchTop = 0;
+        let edgeArchLeft = 0;
+        if (isV3) {
+          edgeArchTop = readBits(bits, pos, 2); pos += 2;
+          edgeArchLeft = readBits(bits, pos, 2); pos += 2;
+        } else if (isV2) {
+          // v2: 1 bit per edge — interpret as height-1 arch
+          edgeArchTop = readBits(bits, pos, 1) === 1 ? 1 : 0; pos += 1;
+          edgeArchLeft = readBits(bits, pos, 1) === 1 ? 1 : 0; pos += 1;
         }
 
         tiles[r].push({

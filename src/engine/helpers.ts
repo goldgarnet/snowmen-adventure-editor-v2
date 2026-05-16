@@ -7,45 +7,41 @@ export function getNextPos(pos: Position, dir: Direction): Position {
 }
 
 /**
- * Returns true if there is an edge-arch on the boundary between `from` and `to`
- * (which are assumed to be adjacent cells in direction `dir`).
- * Edge arches are stored only on the top/left edges of tiles, so we normalize.
+ * Returns the edge-arch level (max passable size) on the boundary between `from`
+ * and the next cell in direction `dir`. Returns 0 if no arch is present.
  */
-export function hasEdgeArch(level: Level, from: Position, dir: Direction): boolean {
-  // The edge between `from` and `getNextPos(from, dir)`
+export function getEdgeArchLevel(level: Level, from: Position, dir: Direction): number {
   switch (dir) {
     case 'right': {
-      // Edge between from(r,c) and (r,c+1) = left edge of (r,c+1)
       const target = { row: from.row, col: from.col + 1 };
-      if (!isInBounds(level, target)) return false;
-      return !!level.tiles[target.row][target.col].edgeArchLeft;
+      if (!isInBounds(level, target)) return 0;
+      return level.tiles[target.row][target.col].edgeArchLeft ?? 0;
     }
     case 'left': {
-      // Edge between from(r,c) and (r,c-1) = left edge of (r,c)
-      if (from.col < 0 || from.col >= level.width || from.row < 0 || from.row >= level.height) return false;
-      return !!level.tiles[from.row][from.col].edgeArchLeft;
+      if (from.col < 0 || from.col >= level.width || from.row < 0 || from.row >= level.height) return 0;
+      return level.tiles[from.row][from.col].edgeArchLeft ?? 0;
     }
     case 'down': {
-      // Edge between from(r,c) and (r+1,c) = top edge of (r+1,c)
       const target = { row: from.row + 1, col: from.col };
-      if (!isInBounds(level, target)) return false;
-      return !!level.tiles[target.row][target.col].edgeArchTop;
+      if (!isInBounds(level, target)) return 0;
+      return level.tiles[target.row][target.col].edgeArchTop ?? 0;
     }
     case 'up': {
-      // Edge between from(r,c) and (r-1,c) = top edge of (r,c)
-      if (from.col < 0 || from.col >= level.width || from.row < 0 || from.row >= level.height) return false;
-      return !!level.tiles[from.row][from.col].edgeArchTop;
+      if (from.col < 0 || from.col >= level.width || from.row < 0 || from.row >= level.height) return 0;
+      return level.tiles[from.row][from.col].edgeArchTop ?? 0;
     }
   }
 }
 
 /**
- * Can an object of given size pass through any edge-arch between `from` and the next cell in `dir`?
- * Edge arches only allow objects with size <= 1 to pass.
+ * Can an object pass through any edge-arch between `from` and the next cell in `dir`?
+ * - No arch: always passes.
+ * - Height-N arch: only objects with size <= N pass.
  */
 export function canPassEdge(level: Level, from: Position, dir: Direction, obj: GameObject): boolean {
-  if (!hasEdgeArch(level, from, dir)) return true;
-  return obj.size <= 1;
+  const lvl = getEdgeArchLevel(level, from, dir);
+  if (lvl === 0) return true;
+  return obj.size <= lvl;
 }
 
 export function canEnterTile(level: Level, pos: Position, dir: Direction, obj: GameObject): boolean {
@@ -103,15 +99,13 @@ export function getPerpendicularDirs(dir: Direction): [Direction, Direction] {
  * Returns true if movement in direction `dir` from `pos` is "backed" — i.e. the cell
  * at `getNextPos(pos, dir)` acts as a wall for force/snowman-build backing purposes.
  *
- * Backing conditions:
- *  - The next cell is out of bounds (map edge counts as wall)
- *  - The next cell contains wall / block / tree
- *  - Movement from `pos` in `dir` is blocked by a tunnel (perpendicular orientation)
- *  - Movement from `pos` in `dir` is blocked by an edge-arch for a snowball of size >= 2
- *    (effectively: an edge-arch counts as a wall because the object being pushed is too big)
+ * Per spec, backing conditions are exactly:
+ *  - Map edge (out of bounds) — always counts as wall
+ *  - Wall / block / tree object at the next cell
+ *  - A perpendicular tunnel between `pos` and the next cell (i.e., the rowArch /
+ *    columnArch oriented to block the push direction)
  *
- * Note: for force/build we treat objects of "size >= 2" (the typical pushed thing)
- * as needing the backing. We pass a "probe" object to test tunnel/edge-arch blockage.
+ * Edge arches do NOT back force/build, regardless of their height.
  */
 export function isBacked(level: Level, pos: Position, dir: Direction): boolean {
   const nextPos = getNextPos(pos, dir);
@@ -119,23 +113,18 @@ export function isBacked(level: Level, pos: Position, dir: Direction): boolean {
 
   const nextObj = level.objects[nextPos.row][nextPos.col];
   if (nextObj) {
-    if (nextObj.type === 'wall' || nextObj.type === 'block' || nextObj.type === 'tree') {
-      return true;
-    }
-    return false;
+    return nextObj.type === 'wall' || nextObj.type === 'block' || nextObj.type === 'tree';
   }
 
-  // No object at nextPos — but a tunnel or edge-arch may still block movement.
-  // Probe with a "size 2 snowball"-like object: anything taller/wider than size 1
-  // will be blocked by tunnels (height > 1) and by edge arches (size > 1).
-  const probe: GameObject = {
-    type: 'snowball',
-    size: 2,
-    isMelting: false,
-    createdAt: 0,
-  };
-  if (!canMoveTo(level, pos, dir, probe)) {
-    return true;
+  // Check perpendicular tunnel blockage (existing arch-tile semantics): rowArch
+  // blocks left/right movement; columnArch blocks up/down movement.
+  const tile = level.tiles[pos.row][pos.col];
+  const nextTile = level.tiles[nextPos.row][nextPos.col];
+  const isHorz = dir === 'left' || dir === 'right';
+  if (isHorz) {
+    if (tile.isRowArch || nextTile.isRowArch) return true;
+  } else {
+    if (tile.isColumnArch || nextTile.isColumnArch) return true;
   }
 
   return false;

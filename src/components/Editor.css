@@ -6,10 +6,12 @@
 
 .editor-sidebar {
   width: 264px;
-  padding: 15px 13px;
+  padding: 15px 13px 40px;
   background: linear-gradient(180deg, #1a1a2e, #161628);
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   flex-shrink: 0;
 }
 
@@ -210,30 +212,19 @@
   font-weight: 600;
 }
 
-/* Full-width arch button */
-.arch-btn-full {
-  width: 100%;
-  padding: 8px 7px;
-  border: 1px solid rgba(200, 160, 60, 0.25);
+/* Arch buttons (height-1 / height-2) */
+.arch-btn {
+  border-color: rgba(200, 160, 60, 0.25);
   background: #2e2820;
   color: #d8b86c;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  transition: all 0.12s ease;
 }
 
-.arch-btn-full:hover:not(.active) {
+.arch-btn:hover:not(.active) {
   background: #36302a;
   color: #e8c878;
 }
 
-.arch-btn-full.active {
+.arch-btn.active {
   background: linear-gradient(135deg, #c9a44a, #a78a3a);
   color: #1a1a14;
   border-color: transparent;

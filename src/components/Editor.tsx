@@ -12,7 +12,8 @@ type EditorTool =
   | 'goal'
   | 'rowTunnel'
   | 'columnTunnel'
-  | 'edgeArch'
+  | 'edgeArch1'
+  | 'edgeArch2'
   | 'player'
   | 'snowballLarge'
   | 'snowballSmall'
@@ -25,7 +26,7 @@ type EditorTool =
   | 'eraser';
 
 const DRAG_TOOLS: EditorTool[] = ['warm', 'cool', 'flake', 'wall', 'eraser'];
-const EDGE_TOOLS: EditorTool[] = ['edgeArch', 'eraser'];
+const EDGE_TOOLS: EditorTool[] = ['edgeArch1', 'edgeArch2', 'eraser'];
 
 interface EditorProps {
   level: Level;
@@ -81,13 +82,14 @@ export default function Editor({ level, setLevel }: EditorProps) {
     if (!EDGE_TOOLS.includes(selectedTool)) return;
     const newLevel = cloneLevel(level);
     const tile = newLevel.tiles[row][col];
-    if (selectedTool === 'edgeArch') {
-      // Toggle
-      if (side === 'top') tile.edgeArchTop = !tile.edgeArchTop;
-      else tile.edgeArchLeft = !tile.edgeArchLeft;
+    if (selectedTool === 'edgeArch1' || selectedTool === 'edgeArch2') {
+      const targetLevel = selectedTool === 'edgeArch1' ? 1 : 2;
+      const field: 'edgeArchTop' | 'edgeArchLeft' = side === 'top' ? 'edgeArchTop' : 'edgeArchLeft';
+      // Toggle: if same level is already set, clear; otherwise set to targetLevel.
+      tile[field] = (tile[field] ?? 0) === targetLevel ? 0 : targetLevel;
     } else if (selectedTool === 'eraser') {
-      if (side === 'top') tile.edgeArchTop = false;
-      else tile.edgeArchLeft = false;
+      if (side === 'top') tile.edgeArchTop = 0;
+      else tile.edgeArchLeft = 0;
     }
     setLevel(newLevel);
   };
@@ -125,9 +127,9 @@ export default function Editor({ level, setLevel }: EditorProps) {
         tile.isShade = true;
         tile.isWarm = false;
         break;
-      case 'edgeArch':
-        // Edge arches are placed via handleEdgeClick, not cell click.
-        // A cell-center click toggles nothing (no-op).
+      case 'edgeArch1':
+      case 'edgeArch2':
+        // Edge arches are placed via handleEdgeClick, not cell click. No-op here.
         break;
       case 'player':
         for (let r = 0; r < lv.height; r++)
@@ -319,11 +321,16 @@ export default function Editor({ level, setLevel }: EditorProps) {
               </button>
             ))}
           </div>
-          <button className={`tool-btn arch-btn-full ${selectedTool === 'edgeArch' ? 'active' : ''}`}
-            onClick={() => setSelectedTool('edgeArch')}
-            style={{ marginTop: 6 }}>
-            <span className="tool-emoji">🏛️</span>아치 (모서리 클릭)
-          </button>
+          <div className="tool-group-2col" style={{ marginTop: 6 }}>
+            <button className={`tool-btn arch-btn ${selectedTool === 'edgeArch1' ? 'active' : ''}`}
+              onClick={() => setSelectedTool('edgeArch1')}>
+              <span className="tool-emoji">🏛️</span>높이 1 아치
+            </button>
+            <button className={`tool-btn arch-btn ${selectedTool === 'edgeArch2' ? 'active' : ''}`}
+              onClick={() => setSelectedTool('edgeArch2')}>
+              <span className="tool-emoji">🏛️</span>높이 2 아치
+            </button>
+          </div>
         </section>
 
         <section className="editor-section">

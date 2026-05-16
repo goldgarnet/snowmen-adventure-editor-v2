@@ -114,44 +114,18 @@
   50% { opacity: 1; }
 }
 
-/* Edge click strips: shown in edge-mode only */
+/* Edge click strips: shown in edge-mode only.
+   Positioned absolutely in pixel coords from Grid.tsx so they sit precisely
+   across boundary lines (with corner trim to avoid the "selecting corners" feel). */
 .edge-hit {
-  position: absolute;
   z-index: 6;
   cursor: pointer;
   background: rgba(255, 200, 80, 0.0);
+  border-radius: 3px;
   transition: background 0.1s ease;
 }
 
 .edge-hit:hover {
-  background: rgba(255, 200, 80, 0.4);
-}
-
-.edge-hit-top {
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 24%;
-}
-
-.edge-hit-bottom {
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 24%;
-}
-
-.edge-hit-left {
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 24%;
-}
-
-.edge-hit-right {
-  top: 0;
-  bottom: 0;
-  right: 0;
-  width: 24%;
+  background: rgba(255, 200, 80, 0.45);
 }
 
