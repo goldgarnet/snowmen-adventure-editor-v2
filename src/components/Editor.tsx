@@ -16,6 +16,9 @@ type EditorTool =
   | 'player'
   | 'snowballLarge'
   | 'snowballSmall'
+  | 'snowman1'
+  | 'snowman2'
+  | 'snowman3'
   | 'wall'
   | 'block'
   | 'tree'
@@ -138,6 +141,15 @@ export default function Editor({ level, setLevel }: EditorProps) {
       case 'snowballSmall':
         lv.objects[row][col] = { type: 'snowball', size: 1, isMelting: false, createdAt: 0 };
         break;
+      case 'snowman1':
+        lv.objects[row][col] = { type: 'snowman', size: 1, isMelting: false, createdAt: 0 };
+        break;
+      case 'snowman2':
+        lv.objects[row][col] = { type: 'snowman', size: 2, isMelting: false, createdAt: 0 };
+        break;
+      case 'snowman3':
+        lv.objects[row][col] = { type: 'snowman', size: 3, isMelting: false, createdAt: 0 };
+        break;
       case 'wall':
         lv.objects[row][col] = { type: 'wall', size: 100, isMelting: false, createdAt: 0 };
         break;
@@ -252,6 +264,9 @@ export default function Editor({ level, setLevel }: EditorProps) {
     { id: 'snowballSmall', label: '작은 눈덩이', emoji: '🔵' },
     { id: 'block', label: '블록', emoji: '📦' },
     { id: 'tree', label: '나무', emoji: '🌲' },
+    { id: 'snowman1', label: '눈사람 1', emoji: '⛄' },
+    { id: 'snowman2', label: '눈사람 2', emoji: '⛄' },
+    { id: 'snowman3', label: '눈사람 3', emoji: '⛄' },
   ];
 
   return (
