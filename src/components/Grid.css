@@ -1,0 +1,151 @@
+.grid {
+  display: grid;
+  border: 2px solid #5a6a7a;
+  border-radius: 6px;
+  user-select: none;
+  overflow: visible;
+  position: relative;
+}
+
+.grid-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-right: 1px solid rgba(100, 120, 140, 0.35);
+  border-bottom: 1px solid rgba(100, 120, 140, 0.35);
+  box-sizing: border-box;
+}
+
+.grid-cell.warm {
+  background: #f5e6c8;
+}
+
+.grid-cell.cool {
+  background: #d0e8f8;
+}
+
+.grid-cell.shaded {
+  background: #8a9ab0 !important;
+}
+
+.grid-cell.warm.shaded {
+  background: #b0a08a !important;
+}
+
+.grid-cell.flake {
+  background: #d8eeff;
+}
+
+.grid-cell.goal {
+  background: linear-gradient(135deg, rgba(60, 200, 100, 0.18), rgba(40, 180, 80, 0.08));
+}
+
+.grid-cell.row-arch,
+.grid-cell.col-arch {
+  background: #95a0b0;
+}
+
+.grid:not(.edge-mode) .grid-cell:hover {
+  outline: 2px solid #5a9fd4;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.tile-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.goal-overlay {
+  animation: goal-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes goal-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.flake-overlay {
+  animation: flake-shimmer 3s ease-in-out infinite;
+}
+
+@keyframes flake-shimmer {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.object {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-highlight {
+  filter: drop-shadow(0 0 5px rgba(80, 160, 255, 0.7));
+}
+
+.melting {
+  opacity: 0.8;
+}
+
+.melting-sweat {
+  animation: sweat-drip 1.5s ease-in-out infinite;
+}
+
+@keyframes sweat-drip {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* Edge click strips: shown in edge-mode only */
+.edge-hit {
+  position: absolute;
+  z-index: 6;
+  cursor: pointer;
+  background: rgba(255, 200, 80, 0.0);
+  transition: background 0.1s ease;
+}
+
+.edge-hit:hover {
+  background: rgba(255, 200, 80, 0.4);
+}
+
+.edge-hit-top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 24%;
+}
+
+.edge-hit-bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24%;
+}
+
+.edge-hit-left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 24%;
+}
+
+.edge-hit-right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 24%;
+}
+
+/* When in edge mode, dim the cell interior cursor */
+.grid.edge-mode .grid-cell {
+  cursor: default;
+}

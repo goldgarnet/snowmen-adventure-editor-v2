@@ -1,0 +1,62 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: #12121f;
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 24px;
+  background: linear-gradient(180deg, #1c1c32, #16162a);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.app-header h1 {
+  font-size: 19px;
+  font-weight: 600;
+  color: #e8ecf0;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.mode-tabs {
+  display: flex;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 3px;
+  border-radius: 8px;
+}
+
+.mode-tabs button {
+  padding: 6px 18px;
+  border: none;
+  background: transparent;
+  color: #8899aa;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.mode-tabs button:hover:not(.active) {
+  color: #c0c8d0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mode-tabs button.active {
+  background: #4a6fa5;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(74, 111, 165, 0.4);
+}
+
+.app-main {
+  flex: 1;
+  overflow: hidden;
+}

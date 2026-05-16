@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "C:\\nodejs22\\node-v22.14.0-win-x64\\npx.cmd",
+      "runtimeArgs": ["vite", "--port", "3000"],
+      "port": 3000
+    }
+  ]
+}
