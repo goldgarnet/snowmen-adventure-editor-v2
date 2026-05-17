@@ -9,10 +9,26 @@ interface GridProps {
   onEdgeClick?: (row: number, col: number, side: 'top' | 'left') => void;
   edgeMode?: boolean;
   highlightPlayer?: boolean;
+  selectedCells?: Set<string>;
+  previewSelectionCells?: Set<string> | null;
+  moveGhost?: {
+    srcBBox: { minR: number; maxR: number; minC: number; maxC: number };
+    delta: { dr: number; dc: number };
+  } | null;
 }
 
-export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edgeMode, highlightPlayer }: GridProps) {
+export default function Grid({
+  level, onCellClick, onCellDrag, onEdgeClick, edgeMode, highlightPlayer,
+  selectedCells, previewSelectionCells, moveGhost,
+}: GridProps) {
   const [isDragging, setIsDragging] = useState(false);
+
+  // Reset isDragging if the mouse is released anywhere (even outside the grid).
+  useEffect(() => {
+    const onUp = () => setIsDragging(false);
+    window.addEventListener('mouseup', onUp);
+    return () => window.removeEventListener('mouseup', onUp);
+  }, []);
 
   // Responsive cell sizing: measure the wrapper and fill available space.
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -95,6 +111,8 @@ export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edge
             Array.from({ length: level.width }, (_, col) => {
               const tile = level.tiles[row][col];
               const obj = level.objects[row][col];
+              const key = `${row},${col}`;
+              const isSelected = !!(previewSelectionCells ?? selectedCells)?.has(key);
 
               const tileClasses = [
                 'grid-cell',
@@ -124,11 +142,25 @@ export default function Grid({ level, onCellClick, onCellDrag, onEdgeClick, edge
                       {renderObject(obj, cellSize)}
                     </div>
                   )}
+                  {isSelected && <div className="cell-selection-overlay" />}
                 </div>
               );
             })
           )}
         </div>
+
+        {/* Move ghost: dashed rectangle at the destination bbox while dragging a selection */}
+        {moveGhost && (
+          <div className="move-ghost" style={{
+            position: 'absolute',
+            left: (moveGhost.srcBBox.minC + moveGhost.delta.dc) * cellSize,
+            top: (moveGhost.srcBBox.minR + moveGhost.delta.dr) * cellSize,
+            width: (moveGhost.srcBBox.maxC - moveGhost.srcBBox.minC + 1) * cellSize,
+            height: (moveGhost.srcBBox.maxR - moveGhost.srcBBox.minR + 1) * cellSize,
+            pointerEvents: 'none',
+            zIndex: 7,
+          }} />
+        )}
 
         {/* Arch visuals overlay (absolute pixel positioning over the grid) */}
         <div className="edge-overlay" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>

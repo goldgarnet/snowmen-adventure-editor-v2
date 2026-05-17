@@ -212,6 +212,47 @@
   font-weight: 600;
 }
 
+/* Select / move tool button */
+.select-btn-full {
+  width: 100%;
+  padding: 9px 8px;
+  border: 1px solid rgba(120, 190, 255, 0.3);
+  background: #1f2638;
+  color: #a8c5e8;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.12s ease;
+}
+
+.select-btn-full:hover:not(.active) {
+  background: #283048;
+  color: #c5dcf3;
+}
+
+.select-btn-full.active {
+  background: linear-gradient(135deg, #4a85d4, #3a6ec2);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 1px 4px rgba(74, 133, 212, 0.4);
+}
+
+.select-hint {
+  margin-top: 6px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #889abf;
+  background: rgba(74, 133, 212, 0.08);
+  border: 1px solid rgba(120, 190, 255, 0.15);
+  padding: 6px 8px;
+  border-radius: 5px;
+}
+
 /* Arch buttons (height-1 / height-2) */
 .arch-btn {
   border-color: rgba(200, 160, 60, 0.25);

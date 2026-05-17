@@ -129,3 +129,23 @@
   background: rgba(255, 200, 80, 0.45);
 }
 
+/* Selection overlay on each selected cell */
+.cell-selection-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(80, 160, 255, 0.22);
+  border: 1.5px solid rgba(120, 190, 255, 0.85);
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Move-drag ghost: dashed outline at the destination bbox */
+.move-ghost {
+  border: 2px dashed rgba(255, 220, 100, 0.95);
+  border-radius: 4px;
+  background: rgba(255, 220, 100, 0.10);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25) inset;
+  box-sizing: border-box;
+}
+

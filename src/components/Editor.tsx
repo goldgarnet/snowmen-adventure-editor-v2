@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
-import { Level, SunDirection } from '../types';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Level, SunDirection, Tile, GameObject } from '../types';
 import { createDefaultTile, createLevel, cloneLevel, deserializeLevel } from '../utils/level';
 import { encodeLevelCode, decodeLevelCode } from '../utils/levelCode';
 import Grid from './Grid';
 import './Editor.css';
 
 type EditorTool =
+  | 'select'
   | 'warm'
   | 'cool'
   | 'flake'
@@ -28,6 +29,44 @@ type EditorTool =
 const DRAG_TOOLS: EditorTool[] = ['warm', 'cool', 'flake', 'wall', 'eraser'];
 const EDGE_TOOLS: EditorTool[] = ['edgeArch1', 'edgeArch2', 'eraser'];
 
+interface Pos { r: number; c: number; }
+interface BBox { minR: number; maxR: number; minC: number; maxC: number; }
+
+interface SnapshotCell { r: number; c: number; tile: Tile; obj: GameObject | null; }
+
+type DragState =
+  | { kind: 'select'; anchor: Pos; current: Pos }
+  | { kind: 'move'; anchor: Pos; current: Pos; snapshot: SnapshotCell[]; bbox: BBox };
+
+const cellKey = (r: number, c: number) => `${r},${c}`;
+
+function rectKeys(a: Pos, b: Pos): Set<string> {
+  const r1 = Math.min(a.r, b.r), r2 = Math.max(a.r, b.r);
+  const c1 = Math.min(a.c, b.c), c2 = Math.max(a.c, b.c);
+  const s = new Set<string>();
+  for (let r = r1; r <= r2; r++)
+    for (let c = c1; c <= c2; c++)
+      s.add(cellKey(r, c));
+  return s;
+}
+
+function bboxFromKeys(keys: Set<string>): BBox {
+  let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+  for (const k of keys) {
+    const [r, c] = k.split(',').map(Number);
+    minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+    minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+  }
+  return { minR, maxR, minC, maxC };
+}
+
+function clampDelta(bbox: BBox, raw: { dr: number; dc: number }, w: number, h: number) {
+  return {
+    dr: Math.max(-bbox.minR, Math.min(h - 1 - bbox.maxR, raw.dr)),
+    dc: Math.max(-bbox.minC, Math.min(w - 1 - bbox.maxC, raw.dc)),
+  };
+}
+
 interface EditorProps {
   level: Level;
   setLevel: (level: Level) => void;
@@ -40,6 +79,143 @@ export default function Editor({ level, setLevel }: EditorProps) {
   const [jsonText, setJsonText] = useState('');
   const [copyMsg, setCopyMsg] = useState(false);
   const dragLevelRef = useRef<Level | null>(null);
+
+  // === Selection / move state (used by the 'select' tool) ===
+  const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [drag, setDrag] = useState<DragState | null>(null);
+
+  const previewSelection = drag?.kind === 'select'
+    ? rectKeys(drag.anchor, drag.current)
+    : null;
+
+  const moveDelta = drag?.kind === 'move'
+    ? clampDelta(
+        drag.bbox,
+        { dr: drag.current.r - drag.anchor.r, dc: drag.current.c - drag.anchor.c },
+        level.width, level.height
+      )
+    : null;
+
+  const moveGhost = drag?.kind === 'move' && moveDelta
+    ? { srcBBox: drag.bbox, delta: moveDelta }
+    : null;
+
+  const handleSelectStart = (r: number, c: number) => {
+    const key = cellKey(r, c);
+    if (selection.has(key)) {
+      // Start a move drag of the existing selection.
+      const cells: SnapshotCell[] = [];
+      for (const k of selection) {
+        const [rs, cs] = k.split(',').map(Number);
+        cells.push({
+          r: rs, c: cs,
+          tile: { ...level.tiles[rs][cs] },
+          obj: level.objects[rs][cs] ? { ...level.objects[rs][cs]! } : null,
+        });
+      }
+      setDrag({
+        kind: 'move',
+        anchor: { r, c },
+        current: { r, c },
+        snapshot: cells,
+        bbox: bboxFromKeys(selection),
+      });
+    } else {
+      // Start a fresh rubber-band selection. Clear the current selection so the
+      // preview doesn't overlap stale highlights.
+      setSelection(new Set());
+      setDrag({ kind: 'select', anchor: { r, c }, current: { r, c } });
+    }
+  };
+
+  const handleSelectMove = (r: number, c: number) => {
+    setDrag((d) => {
+      if (!d) return d;
+      if (d.current.r === r && d.current.c === c) return d;
+      return { ...d, current: { r, c } } as DragState;
+    });
+  };
+
+  const finalizeDrag = useCallback(() => {
+    if (!drag) return;
+    if (drag.kind === 'select') {
+      setSelection(rectKeys(drag.anchor, drag.current));
+    } else {
+      const raw = { dr: drag.current.r - drag.anchor.r, dc: drag.current.c - drag.anchor.c };
+      const delta = clampDelta(drag.bbox, raw, level.width, level.height);
+      if (delta.dr !== 0 || delta.dc !== 0) {
+        const newLevel = cloneLevel(level);
+        // Clear source cells first (in case source and destination overlap).
+        for (const cell of drag.snapshot) {
+          newLevel.tiles[cell.r][cell.c] = createDefaultTile();
+          newLevel.objects[cell.r][cell.c] = null;
+        }
+        // Apply moved cells at destination.
+        const newSel = new Set<string>();
+        for (const cell of drag.snapshot) {
+          const nr = cell.r + delta.dr;
+          const nc = cell.c + delta.dc;
+          newLevel.tiles[nr][nc] = cell.tile;
+          newLevel.objects[nr][nc] = cell.obj;
+          newSel.add(cellKey(nr, nc));
+        }
+        setLevel(newLevel);
+        setSelection(newSel);
+      }
+    }
+    setDrag(null);
+  }, [drag, level, setLevel]);
+
+  useEffect(() => {
+    const onUp = () => finalizeDrag();
+    window.addEventListener('mouseup', onUp);
+    return () => window.removeEventListener('mouseup', onUp);
+  }, [finalizeDrag]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Ignore key events when typing in inputs/textareas.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (e.key === 'Escape') {
+        setSelection(new Set());
+        setDrag(null);
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selection.size > 0 && selectedTool === 'select') {
+        const newLevel = cloneLevel(level);
+        for (const k of selection) {
+          const [r, c] = k.split(',').map(Number);
+          newLevel.tiles[r][c] = createDefaultTile();
+          newLevel.objects[r][c] = null;
+        }
+        setLevel(newLevel);
+        setSelection(new Set());
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selection, level, selectedTool, setLevel]);
+
+  // Clear selection when switching away from select tool.
+  useEffect(() => {
+    if (selectedTool !== 'select') {
+      setSelection(new Set());
+      setDrag(null);
+    }
+  }, [selectedTool]);
+
+  // Drop selection keys that are now out of bounds after a map resize.
+  useEffect(() => {
+    setSelection((sel) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const k of sel) {
+        const [r, c] = k.split(',').map(Number);
+        if (r < level.height && c < level.width) next.add(k);
+        else changed = true;
+      }
+      return changed ? next : sel;
+    });
+  }, [level.width, level.height]);
 
   // Local string state for width/height inputs so users can clear them.
   const [widthInput, setWidthInput] = useState<string>(level.width.toString());
@@ -61,6 +237,10 @@ export default function Editor({ level, setLevel }: EditorProps) {
   };
 
   const handleCellClick = (row: number, col: number) => {
+    if (selectedTool === 'select') {
+      handleSelectStart(row, col);
+      return;
+    }
     const newLevel = cloneLevel(level);
     applyTool(newLevel, row, col, selectedTool);
     if (DRAG_TOOLS.includes(selectedTool)) {
@@ -70,6 +250,10 @@ export default function Editor({ level, setLevel }: EditorProps) {
   };
 
   const handleCellDrag = (row: number, col: number) => {
+    if (selectedTool === 'select') {
+      handleSelectMove(row, col);
+      return;
+    }
     if (!DRAG_TOOLS.includes(selectedTool)) return;
     const base = dragLevelRef.current ?? level;
     const newLevel = cloneLevel(base);
@@ -311,6 +495,19 @@ export default function Editor({ level, setLevel }: EditorProps) {
         </section>
 
         <section className="editor-section">
+          <button className={`tool-btn select-btn-full ${selectedTool === 'select' ? 'active' : ''}`}
+            onClick={() => setSelectedTool('select')}
+            title="드래그로 영역 선택 후, 다시 드래그하면 이동. Delete로 삭제, Esc로 해제.">
+            <span className="tool-emoji">🔲</span>선택 / 이동
+          </button>
+          {selectedTool === 'select' && (
+            <div className="select-hint">
+              드래그: 선택 · 선택된 칸 다시 드래그: 이동 · Delete: 삭제 · Esc: 해제
+            </div>
+          )}
+        </section>
+
+        <section className="editor-section">
           <h3>타일</h3>
           <div className="tool-group-2col">
             {tileTools.map((tool) => (
@@ -390,7 +587,10 @@ export default function Editor({ level, setLevel }: EditorProps) {
           onCellClick={handleCellClick}
           onCellDrag={handleCellDrag}
           onEdgeClick={handleEdgeClick}
-          edgeMode={EDGE_TOOLS.includes(selectedTool)} />
+          edgeMode={EDGE_TOOLS.includes(selectedTool)}
+          selectedCells={selection}
+          previewSelectionCells={previewSelection}
+          moveGhost={moveGhost} />
       </div>
 
       {copyMsg && <div className="toast">클립보드에 복사되었습니다!</div>}
