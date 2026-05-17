@@ -6,7 +6,9 @@ interface GridProps {
   level: Level;
   onCellClick?: (row: number, col: number) => void;
   onCellDrag?: (row: number, col: number) => void;
+  onCellErase?: (row: number, col: number) => void;
   onEdgeClick?: (row: number, col: number, side: 'top' | 'left') => void;
+  onEdgeErase?: (row: number, col: number, side: 'top' | 'left') => void;
   edgeMode?: boolean;
   highlightPlayer?: boolean;
   selectedCells?: Set<string>;
@@ -18,14 +20,15 @@ interface GridProps {
 }
 
 export default function Grid({
-  level, onCellClick, onCellDrag, onEdgeClick, edgeMode, highlightPlayer,
+  level, onCellClick, onCellDrag, onCellErase, onEdgeClick, onEdgeErase, edgeMode, highlightPlayer,
   selectedCells, previewSelectionCells, moveGhost,
 }: GridProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isRightDragging, setIsRightDragging] = useState(false);
 
-  // Reset isDragging if the mouse is released anywhere (even outside the grid).
+  // Reset drag flags if the mouse is released anywhere (even outside the grid).
   useEffect(() => {
-    const onUp = () => setIsDragging(false);
+    const onUp = () => { setIsDragging(false); setIsRightDragging(false); };
     window.addEventListener('mouseup', onUp);
     return () => window.removeEventListener('mouseup', onUp);
   }, []);
@@ -97,7 +100,9 @@ export default function Grid({
 
   return (
     <div ref={wrapperRef} className="grid-wrapper">
-      <div className="grid-stack" style={{ position: 'relative', width: gridW, height: gridH }}>
+      <div className="grid-stack"
+        style={{ position: 'relative', width: gridW, height: gridH }}
+        onContextMenu={(e) => e.preventDefault()}>
         <div
           className={`grid ${edgeMode ? 'edge-mode' : ''}`}
           style={{
@@ -128,8 +133,20 @@ export default function Grid({
                 <div
                   key={`${row}-${col}`}
                   className={tileClasses}
-                  onMouseDown={() => handleMouseDown(row, col)}
-                  onMouseEnter={() => handleMouseEnter(row, col)}
+                  onMouseDown={(e) => {
+                    if (e.button === 2) {
+                      e.preventDefault();
+                      setIsRightDragging(true);
+                      onCellErase?.(row, col);
+                    } else if (e.button === 0) {
+                      handleMouseDown(row, col);
+                    }
+                  }}
+                  onMouseEnter={() => {
+                    if (isRightDragging) onCellErase?.(row, col);
+                    else handleMouseEnter(row, col);
+                  }}
+                  onContextMenu={(e) => e.preventDefault()}
                   style={{ width: cellSize, height: cellSize, position: 'relative' }}
                 >
                   {tile.isGoal && <GoalOverlay size={cellSize} />}
@@ -196,7 +213,12 @@ export default function Grid({
                   width: Math.max(0, cellSize - 2 * cornerTrim),
                   height: hitThick,
                 }}
-                onClick={(ev) => { ev.stopPropagation(); onEdgeClick?.(e.row, e.col, 'top'); }} />
+                onMouseDown={(ev) => {
+                  ev.stopPropagation();
+                  if (ev.button === 0) onEdgeClick?.(e.row, e.col, 'top');
+                  else if (ev.button === 2) { ev.preventDefault(); onEdgeErase?.(e.row, e.col, 'top'); }
+                }}
+                onContextMenu={(ev) => { ev.preventDefault(); ev.stopPropagation(); }} />
             ))}
             {vertEdges.map(e => (
               <div key={`vh-${e.row}-${e.col}`} className="edge-hit edge-hit-v"
@@ -207,7 +229,12 @@ export default function Grid({
                   width: hitThick,
                   height: Math.max(0, cellSize - 2 * cornerTrim),
                 }}
-                onClick={(ev) => { ev.stopPropagation(); onEdgeClick?.(e.row, e.col, 'left'); }} />
+                onMouseDown={(ev) => {
+                  ev.stopPropagation();
+                  if (ev.button === 0) onEdgeClick?.(e.row, e.col, 'left');
+                  else if (ev.button === 2) { ev.preventDefault(); onEdgeErase?.(e.row, e.col, 'left'); }
+                }}
+                onContextMenu={(ev) => { ev.preventDefault(); ev.stopPropagation(); }} />
             ))}
           </div>
         )}

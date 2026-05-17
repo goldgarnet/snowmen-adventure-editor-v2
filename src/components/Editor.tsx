@@ -262,6 +262,35 @@ export default function Editor({ level, setLevel }: EditorProps) {
     setLevel(newLevel);
   };
 
+  // Right-click: erase a cell back to the default state (cool, empty, no flags).
+  // This intentionally clears edgeArchTop/Left too because createDefaultTile()
+  // returns a fully-default tile.
+  const eraseDragRef = useRef<Level | null>(null);
+  const eraseCell = (row: number, col: number) => {
+    const base = eraseDragRef.current ?? level;
+    const newLevel = cloneLevel(base);
+    newLevel.tiles[row][col] = createDefaultTile();
+    newLevel.objects[row][col] = null;
+    eraseDragRef.current = newLevel;
+    setLevel(newLevel);
+  };
+
+  // Right-click on an edge strip: clear just that edge arch.
+  const eraseEdge = (row: number, col: number, side: 'top' | 'left') => {
+    const newLevel = cloneLevel(level);
+    const tile = newLevel.tiles[row][col];
+    if (side === 'top') tile.edgeArchTop = 0;
+    else tile.edgeArchLeft = 0;
+    setLevel(newLevel);
+  };
+
+  // Reset the right-drag accumulator whenever the global mouseup fires.
+  useEffect(() => {
+    const onUp = () => { eraseDragRef.current = null; };
+    window.addEventListener('mouseup', onUp);
+    return () => window.removeEventListener('mouseup', onUp);
+  }, []);
+
   const handleEdgeClick = (row: number, col: number, side: 'top' | 'left') => {
     if (!EDGE_TOOLS.includes(selectedTool)) return;
     const newLevel = cloneLevel(level);
@@ -587,6 +616,8 @@ export default function Editor({ level, setLevel }: EditorProps) {
           onCellClick={handleCellClick}
           onCellDrag={handleCellDrag}
           onEdgeClick={handleEdgeClick}
+          onCellErase={eraseCell}
+          onEdgeErase={eraseEdge}
           edgeMode={EDGE_TOOLS.includes(selectedTool)}
           selectedCells={selection}
           previewSelectionCells={previewSelection}
