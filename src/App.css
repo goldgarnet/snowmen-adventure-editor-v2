@@ -59,6 +59,29 @@
   box-shadow: 0 1px 4px rgba(74, 111, 165, 0.4);
 }
 
+.copy-json-btn {
+  padding: 6px 16px;
+  border: none;
+  background: rgba(80, 160, 100, 0.18);
+  color: #7ec89a;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  margin-left: 8px;
+}
+
+.copy-json-btn:hover {
+  background: rgba(80, 160, 100, 0.30);
+  color: #a0e0b4;
+}
+
+.copy-json-btn.copied {
+  background: rgba(80, 160, 100, 0.40);
+  color: #b8f0cc;
+}
+
 .app-main {
   flex: 1;
   overflow: hidden;
