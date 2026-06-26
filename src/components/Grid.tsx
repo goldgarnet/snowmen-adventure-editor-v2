@@ -404,11 +404,11 @@ function LaserBeamOverlay({ level, cellSize }: { level: Level; cellSize: number 
 
       const startX = (col + 0.5 + dx * 0.5) * cellSize;
       const startY = (row + 0.5 + dy * 0.5) * cellSize;
-      const stopX  = (endCol + 0.5) * cellSize;
-      const stopY  = (endRow  + 0.5) * cellSize;
+      const stopX  = (endCol + 0.5 + dx * 0.5) * cellSize;
+      const stopY  = (endRow  + 0.5 + dy * 0.5) * cellSize;
 
-      const beamW = dx !== 0 ? Math.abs(stopX - startX) + cellSize : cellSize * 0.22;
-      const beamH = dy !== 0 ? Math.abs(stopY - startY) + cellSize : cellSize * 0.22;
+      const beamW = dx !== 0 ? Math.abs(stopX - startX) : cellSize * 0.22;
+      const beamH = dy !== 0 ? Math.abs(stopY - startY) : cellSize * 0.22;
       const bx = Math.min(startX, stopX) - (dx !== 0 ? 0 : beamW / 2);
       const by = Math.min(startY, stopY) - (dy !== 0 ? 0 : beamH / 2);
 
