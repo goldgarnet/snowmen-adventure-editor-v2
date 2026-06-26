@@ -23,6 +23,7 @@ export function rollSnowball(level: Level, fromPos: Position, dir: Direction, tu
     if (!obstacle) {
       moveRollingGroup(level, rollingGroup, dir);
       handleRollFlake(level, rollingGroup[rollingGroup.length - 1].pos, leadObj);
+      if (killIfOnBeam(level, rollingGroup)) break;
       continue;
     }
 
@@ -92,6 +93,7 @@ function rollGroup(level: Level, group: { pos: Position; obj: GameObject }[], di
     if (!obstacle) {
       moveRollingGroup(level, group, dir);
       handleRollFlake(level, group[group.length - 1].pos, leadObj);
+      if (killIfOnBeam(level, group)) break;
       continue;
     }
 
@@ -136,6 +138,40 @@ function moveRollingGroup(level: Level, group: { pos: Position; obj: GameObject 
     level.objects[pos.row][pos.col] = null;
     group[i].pos = nextPos;
   }
+}
+
+const BEAM_DIRS_ROLL: Record<string, [number, number]> = {
+  right: [0, 1], left: [0, -1], up: [-1, 0], down: [1, 0],
+};
+const BEAM_BLOCKERS_ROLL = new Set(['wall', 'block', 'tree', 'laser']);
+
+// Returns true and kills the object if pos is on any laser beam.
+function killIfOnBeam(level: Level, group: { pos: Position; obj: GameObject }[]): boolean {
+  let killed = false;
+  for (let r = 0; r < level.height; r++) {
+    for (let c = 0; c < level.width; c++) {
+      const laser = level.objects[r][c];
+      if (!laser || laser.type !== 'laser') continue;
+      const [dr, dc] = BEAM_DIRS_ROLL[laser.laserDirection ?? 'right'];
+      let cr = r + dr;
+      let cc = c + dc;
+      while (cr >= 0 && cc >= 0 && cr < level.height && cc < level.width) {
+        const hit = level.objects[cr][cc];
+        if (hit) {
+          if (BEAM_BLOCKERS_ROLL.has(hit.type)) break;
+          // Check if this hit object is in our rolling group
+          if (group.some(g => g.pos.row === cr && g.pos.col === cc)) {
+            hit.size = 0;
+            killed = true;
+          }
+          break; // beam is blocked by this object (killed or not)
+        }
+        cr += dr;
+        cc += dc;
+      }
+    }
+  }
+  return killed;
 }
 
 function getConsecutiveObjects(level: Level, startPos: Position, dir: Direction): { pos: Position; obj: GameObject }[] {

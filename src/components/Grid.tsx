@@ -179,6 +179,9 @@ export default function Grid({
           }} />
         )}
 
+        {/* Laser beam overlay */}
+        <LaserBeamOverlay level={level} cellSize={cellSize} />
+
         {/* Arch visuals overlay (absolute pixel positioning over the grid) */}
         <div className="edge-overlay" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           {horzEdges.filter(e => e.level > 0).map(e => (
@@ -368,6 +371,70 @@ function TunnelOverlay({ size, isRow }: { size: number; isRow: boolean }) {
   );
 }
 
+const LASER_BLOCKERS = new Set(['wall', 'block', 'tree', 'laser']);
+const BEAM_DIRS: Record<string, [number, number]> = {
+  right: [1, 0], left: [-1, 0], up: [0, -1], down: [0, 1],
+};
+
+function LaserBeamOverlay({ level, cellSize }: { level: Level; cellSize: number }) {
+  const beams: React.ReactElement[] = [];
+  const gw = level.width;
+  const gh = level.height;
+
+  for (let row = 0; row < gh; row++) {
+    for (let col = 0; col < gw; col++) {
+      const obj = level.objects[row]?.[col];
+      if (!obj || obj.type !== 'laser') continue;
+
+      const dir = (obj as { laserDirection?: string }).laserDirection ?? 'right';
+      const [dx, dy] = BEAM_DIRS[dir] ?? [1, 0];
+      let cx = col + dx;
+      let cy = row + dy;
+      let endCol = col;
+      let endRow = row;
+
+      while (cx >= 0 && cy >= 0 && cx < gw && cy < gh) {
+        const hit = level.objects[cy]?.[cx];
+        if (hit && LASER_BLOCKERS.has(hit.type)) break;
+        endCol = cx; endRow = cy;
+        cx += dx; cy += dy;
+      }
+
+      if (endCol === col && endRow === row) continue; // beam immediately blocked
+
+      const startX = (col + 0.5 + dx * 0.5) * cellSize;
+      const startY = (row + 0.5 + dy * 0.5) * cellSize;
+      const stopX  = (endCol + 0.5) * cellSize;
+      const stopY  = (endRow  + 0.5) * cellSize;
+
+      const beamW = dx !== 0 ? Math.abs(stopX - startX) + cellSize : cellSize * 0.22;
+      const beamH = dy !== 0 ? Math.abs(stopY - startY) + cellSize : cellSize * 0.22;
+      const bx = Math.min(startX, stopX) - (dx !== 0 ? 0 : beamW / 2);
+      const by = Math.min(startY, stopY) - (dy !== 0 ? 0 : beamH / 2);
+
+      beams.push(
+        <g key={`beam-${row}-${col}`}>
+          <rect x={bx} y={by} width={beamW} height={beamH}
+            fill="rgba(255,40,10,0.22)" rx={3} />
+          {dx !== 0
+            ? <line x1={bx} y1={(row + 0.5) * cellSize} x2={bx + beamW} y2={(row + 0.5) * cellSize}
+                stroke="rgba(255,90,30,0.7)" strokeWidth={2} />
+            : <line x1={(col + 0.5) * cellSize} y1={by} x2={(col + 0.5) * cellSize} y2={by + beamH}
+                stroke="rgba(255,90,30,0.7)" strokeWidth={2} />}
+        </g>
+      );
+    }
+  }
+
+  if (beams.length === 0) return null;
+  return (
+    <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 4 }}
+      width={gw * cellSize} height={gh * cellSize}>
+      {beams}
+    </svg>
+  );
+}
+
 function renderObject(obj: { type: string; size: number; isMelting: boolean; treeHeight?: number }, cellSize: number) {
   const s = cellSize * 0.85;
   switch (obj.type) {
@@ -450,6 +517,20 @@ function renderObject(obj: { type: string; size: number; isMelting: boolean; tre
           <polygon points="20,4 32,32 8,32" fill="#2d7a2d" stroke="#1a5a1a" strokeWidth="1" />
           <rect x="17" y="32" width="6" height="6" fill="#5a3a1a" />
           <text x="20" y="22" textAnchor="middle" fontSize="8" fill="#fff">{hLabel}</text>
+        </svg>
+      );
+    }
+    case 'laser': {
+      const dir = (obj as { laserDirection?: string }).laserDirection ?? 'right';
+      const arrowPts: Record<string, string> = {
+        right: '26,20 14,13 14,27', left: '14,20 26,13 26,27',
+        up:    '20,13 13,26 27,26', down:  '20,27 13,14 27,14',
+      };
+      return (
+        <svg width={s} height={s} viewBox="0 0 40 40">
+          <rect x="4" y="4" width="32" height="32" fill="#3a2845" stroke="#5a3060" strokeWidth="1.5" rx="3" />
+          <polygon points={arrowPts[dir] ?? arrowPts.right} fill="#ff4422" opacity="0.9" />
+          <circle cx="20" cy="20" r="4" fill="none" stroke="#ff6644" strokeWidth="1.5" opacity="0.6" />
         </svg>
       );
     }

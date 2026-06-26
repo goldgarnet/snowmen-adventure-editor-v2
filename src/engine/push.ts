@@ -23,6 +23,13 @@ export function executePush(level: Level, playerPos: Position, dir: Direction, t
 
   const objA = level.objects[posA.row][posA.col];
 
+  // Laser: cannot push from emitting face.
+  // Emitting face = direction laser fires. Player hits it by moving in OPP direction.
+  // e.g. laser fires RIGHT → emitting face is right side → block player moving LEFT into it.
+  if (objA?.type === 'laser' && dir === OPP_DIR[objA.laserDirection ?? 'right']) {
+    return { level, playerMoved: false };
+  }
+
   // No object: player just moves
   if (!objA) {
     moveObj(level, playerPos, posA);
@@ -62,6 +69,8 @@ interface ObjInfo {
   isBlock: boolean;
 }
 
+const OPP_DIR: Record<string, string> = { right:'left', left:'right', up:'down', down:'up' };
+
 function objInfo(obj: GameObject): ObjInfo {
   return {
     exists: true,
@@ -69,7 +78,7 @@ function objInfo(obj: GameObject): ObjInfo {
     size: obj.size,
     isSnowball: obj.type === 'snowball',
     isWall: obj.type === 'wall' || obj.size === 100,
-    isBlock: obj.type === 'block',
+    isBlock: obj.type === 'block' || obj.type === 'laser',
   };
 }
 

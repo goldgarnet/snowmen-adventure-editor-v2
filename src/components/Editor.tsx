@@ -24,6 +24,7 @@ type EditorTool =
   | 'wall'
   | 'block'
   | 'tree'
+  | 'laser'
   | 'eraser';
 
 const DRAG_TOOLS: EditorTool[] = ['warm', 'cool', 'flake', 'wall', 'eraser'];
@@ -75,6 +76,7 @@ interface EditorProps {
 export default function Editor({ level, setLevel }: EditorProps) {
   const [selectedTool, setSelectedTool] = useState<EditorTool>('warm');
   const [treeHeight, setTreeHeight] = useState<number>(2);
+  const [laserDir, setLaserDir] = useState<'right'|'left'|'up'|'down'>('right');
   const [showImportExport, setShowImportExport] = useState(false);
   const [jsonText, setJsonText] = useState('');
   const [copyMsg, setCopyMsg] = useState(false);
@@ -374,6 +376,9 @@ export default function Editor({ level, setLevel }: EditorProps) {
       case 'tree':
         lv.objects[row][col] = { type: 'tree', size: 100, isMelting: false, treeHeight, createdAt: 0 };
         break;
+      case 'laser':
+        lv.objects[row][col] = { type: 'laser', size: 1, isMelting: false, laserDirection: laserDir, createdAt: 0 };
+        break;
       case 'eraser':
         lv.objects[row][col] = null;
         tile.isFlake = false;
@@ -479,6 +484,7 @@ export default function Editor({ level, setLevel }: EditorProps) {
     { id: 'snowballSmall', label: '작은 눈덩이', emoji: '🔵' },
     { id: 'block', label: '블록', emoji: '📦' },
     { id: 'tree', label: '나무', emoji: '🌲' },
+    { id: 'laser', label: '레이저', emoji: '🔴' },
   ];
 
   const snowmanTools: { id: EditorTool; label: string; emoji: string }[] = [
@@ -586,6 +592,20 @@ export default function Editor({ level, setLevel }: EditorProps) {
                 <input type="number" min={0.5} step={0.5} value={treeHeight}
                   onChange={(e) => setTreeHeight(Number(e.target.value))} />
               </label>
+            </div>
+          )}
+          {selectedTool === 'laser' && (
+            <div className="tree-height-input">
+              <span style={{fontSize:12,color:'#aaa',marginBottom:4,display:'block'}}>발사 방향</span>
+              <div style={{display:'flex',gap:4}}>
+                {(['left','right','up','down'] as const).map(d => (
+                  <button key={d}
+                    style={{flex:1,padding:'3px 0',fontSize:13,background:laserDir===d?'#c03020':'transparent',color:laserDir===d?'#fff':'#ccc',border:'1px solid #555',borderRadius:4,cursor:'pointer'}}
+                    onClick={() => setLaserDir(d)}>
+                    {d==='left'?'←':d==='right'?'→':d==='up'?'↑':'↓'}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </section>

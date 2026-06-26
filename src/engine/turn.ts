@@ -8,12 +8,40 @@ export interface TurnResult {
   status: GameStatus;
 }
 
+const DIR_DELTA: Record<string, [number, number]> = {
+  right: [0, 1], left: [0, -1], up: [-1, 0], down: [1, 0],
+};
+const LASER_BLOCKERS = new Set(['wall', 'block', 'tree', 'laser']);
+
+function applyLaserCheck(level: Level): void {
+  for (let r = 0; r < level.height; r++) {
+    for (let c = 0; c < level.width; c++) {
+      const obj = level.objects[r][c];
+      if (!obj || obj.type !== 'laser') continue;
+      const [dr, dc] = DIR_DELTA[obj.laserDirection ?? 'right'];
+      let cr = r + dr;
+      let cc = c + dc;
+      while (cr >= 0 && cc >= 0 && cr < level.height && cc < level.width) {
+        const hit = level.objects[cr][cc];
+        if (hit) {
+          if (LASER_BLOCKERS.has(hit.type)) break;
+          hit.size = 0;
+        }
+        cr += dr;
+        cc += dc;
+      }
+    }
+  }
+  processDeadObjects(level);
+}
+
 export function executeSkipTurn(level: Level): TurnResult {
   const newLevel = cloneLevel(level);
   const playerPos = findPlayer(newLevel);
   if (!playerPos) return { level: newLevel, status: 'gameover' };
 
   const turnCount = Date.now();
+  applyLaserCheck(newLevel);
   endOfTurn(newLevel, turnCount);
 
   const finalPlayerPos = findPlayer(newLevel);
@@ -48,6 +76,7 @@ export function executeTurn(level: Level, dir: Direction): TurnResult {
     }
   }
 
+  applyLaserCheck(newLevel);
   endOfTurn(newLevel, turnCount);
 
   const finalPlayerPos = findPlayer(newLevel);

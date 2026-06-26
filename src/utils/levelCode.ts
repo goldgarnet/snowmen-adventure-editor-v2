@@ -57,6 +57,11 @@ function encodeObject(bits: number[], obj: GameObject | null): void {
       pushBits(bits, hVal, 6);
       break;
     }
+    case 'laser': {
+      const dirCode = { right: 10, left: 11, up: 12, down: 13 }[obj.laserDirection ?? 'right'] ?? 10;
+      pushBits(bits, dirCode, 4);
+      break;
+    }
   }
 }
 
@@ -195,6 +200,10 @@ export function decodeLevelCode(code: string): Level | null {
           case 7: obj = { type: 'snowman', size: 1, isMelting: false, createdAt: 0 }; break;
           case 8: obj = { type: 'snowman', size: 2, isMelting: false, createdAt: 0 }; break;
           case 9: obj = { type: 'snowman', size: 3, isMelting: false, createdAt: 0 }; break;
+          case 10: obj = { type: 'laser', size: 1, isMelting: false, laserDirection: 'right', createdAt: 0 }; break;
+          case 11: obj = { type: 'laser', size: 1, isMelting: false, laserDirection: 'left',  createdAt: 0 }; break;
+          case 12: obj = { type: 'laser', size: 1, isMelting: false, laserDirection: 'up',    createdAt: 0 }; break;
+          case 13: obj = { type: 'laser', size: 1, isMelting: false, laserDirection: 'down',  createdAt: 0 }; break;
           default: break;
         }
 

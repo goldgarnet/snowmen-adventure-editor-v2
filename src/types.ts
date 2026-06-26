@@ -1,5 +1,5 @@
 export type SunDirection = 'left' | 'right' | 'up' | 'down';
-export type ObjectType = 'player' | 'snowball' | 'snowman' | 'block' | 'wall' | 'tree';
+export type ObjectType = 'player' | 'snowball' | 'snowman' | 'block' | 'wall' | 'tree' | 'laser';
 export type Direction = 'left' | 'right' | 'up' | 'down';
 
 export interface Tile {
@@ -23,6 +23,7 @@ export interface GameObject {
   size: number;
   isMelting: boolean;
   treeHeight?: number;
+  laserDirection?: SunDirection;
   createdAt: number;
 }
 

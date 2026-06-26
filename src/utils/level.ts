@@ -46,7 +46,10 @@ export function getObjectHeight(obj: GameObject): number {
       return 0;
     case 'tree':
       return obj.treeHeight ?? 1;
+    case 'laser':
+      return 1.5;
   }
+  return 0;
 }
 
 export function isInBounds(level: Level, pos: Position): boolean {

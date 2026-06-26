@@ -16,6 +16,7 @@ function levelToGameJSON(level: Level): object {
       if (!obj) continue;
       const entry: Record<string, unknown> = { type: obj.type, x: col, y: row, size: obj.size };
       if (obj.type === 'tree' && obj.treeHeight != null) entry.height = obj.treeHeight;
+      if (obj.type === 'laser') entry.direction = obj.laserDirection ?? 'right';
       objects.push(entry);
     }
   }
