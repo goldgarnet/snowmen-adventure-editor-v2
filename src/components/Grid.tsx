@@ -168,6 +168,7 @@ export default function Grid({
                   )}
                   {tile.isSoulSwap && <SoulSwapOverlay size={cellSize} />}
                   {tile.isKeyTile && <KeyTileOverlay size={cellSize} />}
+                  {tile.triangle && <TriangleOverlay corner={tile.triangle} size={cellSize} />}
                   {obj && (
                     <div className={`object obj-${obj.type} size-${obj.size} ${highlightPlayer && obj.type === 'player' ? 'player-highlight' : ''} ${obj.isMelting ? 'melting' : ''}`}>
                       {renderObject(obj, cellSize)}
@@ -426,6 +427,31 @@ function KeyTileOverlay({ size }: { size: number }) {
   );
 }
 
+function TriangleOverlay({ corner, size }: { corner: string; size: number }) {
+  // Small corner wedge (~quarter cell) with the hypotenuse drawn as a mirror line.
+  // The two leg edges (at the right-angle corner) are the solid sides.
+  const wedge: Record<string, string> = {
+    tl: '0,0 24,0 0,24',
+    tr: '40,0 16,0 40,24',
+    bl: '0,40 24,40 0,16',
+    br: '40,40 16,40 40,16',
+  };
+  const mirror: Record<string, [number, number, number, number]> = {
+    tl: [24, 0, 0, 24],
+    tr: [16, 0, 40, 24],
+    bl: [24, 40, 0, 16],
+    br: [16, 40, 40, 16],
+  };
+  const m = mirror[corner] ?? mirror.tl;
+  return (
+    <svg className="tile-overlay" width={size} height={size} viewBox="0 0 40 40" style={{ zIndex: 3 }}>
+      <polygon points={wedge[corner] ?? wedge.tl} fill="#6b7a8c" stroke="#3c4654"
+        strokeWidth="1.2" strokeLinejoin="round" />
+      <line x1={m[0]} y1={m[1]} x2={m[2]} y2={m[3]} stroke="#bcd0e6" strokeWidth="1.6" opacity="0.9" />
+    </svg>
+  );
+}
+
 const LASER_BLOCKERS = new Set(['wall', 'block', 'tree', 'laser']);
 const BEAM_DIRS: Record<string, [number, number]> = {
   right: [1, 0], left: [-1, 0], up: [0, -1], down: [0, 1],
@@ -452,6 +478,7 @@ function LaserBeamOverlay({ level, cellSize }: { level: Level; cellSize: number 
         const hit = level.objects[cy]?.[cx];
         if (hit && LASER_BLOCKERS.has(hit.type)) break;
         endCol = cx; endRow = cy;
+        if (level.tiles[cy]?.[cx]?.triangle) break; // triangle stops the beam at this cell
         cx += dx; cy += dy;
       }
 

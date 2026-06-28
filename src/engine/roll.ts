@@ -1,6 +1,16 @@
-import { Level, GameObject, Position, Direction } from '../types';
+import { Level, GameObject, Position, Direction, TriangleCorner } from '../types';
 import { isInBounds } from '../utils/level';
 import { getNextPos, canMoveTo } from './helpers';
+
+// Triangle-mirror reflection — a snowball that has ENTERED a triangle cell turns 90°
+// based on the direction it came in (like a light ray hitting the diagonal mirror).
+// "/" mirror swaps right↔up & left↔down; "\" mirror swaps right↔down & left↔up.
+const TRI_DEFLECT: Record<TriangleCorner, Partial<Record<Direction, Direction>>> = {
+  br: { down: 'left', right: 'up' },    // ◢ mirror "/"
+  bl: { down: 'right', left: 'up' },    // ◣ mirror "\"
+  tl: { up: 'right', left: 'down' },    // ◤ mirror "/"
+  tr: { up: 'left', right: 'down' },    // ◥ mirror "\"
+};
 
 export function rollSnowball(level: Level, fromPos: Position, dir: Direction, turnCount: number): void {
   const obj = level.objects[fromPos.row][fromPos.col];
@@ -8,10 +18,21 @@ export function rollSnowball(level: Level, fromPos: Position, dir: Direction, tu
 
   let rollingGroup: { pos: Position; obj: GameObject }[] = [{ pos: { ...fromPos }, obj }];
   let rollingSize = obj.size;
+  let guard = 0;
+  const MAX_ITERS = level.width * level.height * 4 + 16;
 
   while (true) {
+    if (++guard > MAX_ITERS) break;
     const leadPos = rollingGroup[rollingGroup.length - 1].pos;
     const leadObj = rollingGroup[rollingGroup.length - 1].obj;
+
+    // Triangle mirror: if a single ball is currently inside a triangle cell, reflect
+    // its direction (it entered across an open edge). A train can't turn a corner.
+    const curTri = level.tiles[leadPos.row][leadPos.col].triangle;
+    if (curTri && rollingGroup.length === 1) {
+      const nd = TRI_DEFLECT[curTri][dir];
+      if (nd) dir = nd;
+    }
 
     if (!canMoveTo(level, leadPos, dir, leadObj)) break;
 
@@ -78,10 +99,19 @@ export function rollSnowballGroup(level: Level, positions: Position[], dir: Dire
 
 function rollGroup(level: Level, group: { pos: Position; obj: GameObject }[], dir: Direction, turnCount: number): void {
   let rollingSize = group.reduce((sum, g) => sum + g.obj.size, 0);
+  let guard = 0;
+  const MAX_ITERS = level.width * level.height * 4 + 16;
 
   while (true) {
+    if (++guard > MAX_ITERS) break;
     const leadPos = group[group.length - 1].pos;
     const leadObj = group[group.length - 1].obj;
+
+    const curTri = level.tiles[leadPos.row][leadPos.col].triangle;
+    if (curTri && group.length === 1) {
+      const nd = TRI_DEFLECT[curTri][dir];
+      if (nd) dir = nd;
+    }
 
     if (!canMoveTo(level, leadPos, dir, leadObj)) break;
 
@@ -145,7 +175,8 @@ const BEAM_DIRS_ROLL: Record<string, [number, number]> = {
 };
 const BEAM_BLOCKERS_ROLL = new Set(['wall', 'block', 'tree', 'laser']);
 
-// Returns true and kills the object if pos is on any laser beam.
+// Returns true and kills the object if pos is on any laser beam. Triangle tiles
+// stop the beam at their own cell (one cell further than a solid blocker).
 function killIfOnBeam(level: Level, group: { pos: Position; obj: GameObject }[]): boolean {
   let killed = false;
   for (let r = 0; r < level.height; r++) {
@@ -166,6 +197,7 @@ function killIfOnBeam(level: Level, group: { pos: Position; obj: GameObject }[])
           }
           break; // beam is blocked by this object (killed or not)
         }
+        if (level.tiles[cr][cc].triangle) break; // triangle stops the beam at this cell
         cr += dr;
         cc += dc;
       }

@@ -42,6 +42,7 @@ function applyLaserCheck(level: Level): void {
           if (LASER_BLOCKERS.has(hit.type)) break;
           hit.size = 0;
         }
+        if (level.tiles[cr][cc].triangle) break; // triangle stops the beam at this cell
         cr += dr;
         cc += dc;
       }

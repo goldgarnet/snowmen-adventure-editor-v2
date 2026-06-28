@@ -29,6 +29,7 @@ function levelToGameJSON(level: Level): object {
       if (tile.edgeArchLeft) t.edgeArchLeft = tile.edgeArchLeft;
       if (tile.isSoulSwap) t.isSoulSwap = true;
       if (tile.isKeyTile) t.isKeyTile = true;
+      if (tile.triangle) t.triangle = tile.triangle;
       return t;
     })
   );

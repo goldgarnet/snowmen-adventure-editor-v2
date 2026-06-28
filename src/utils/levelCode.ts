@@ -1,4 +1,4 @@
-import { Level, Tile, GameObject, SunDirection } from '../types';
+import { Level, Tile, GameObject, SunDirection, TriangleCorner } from '../types';
 
 const BASE62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 const SUN_DIRS: SunDirection[] = ['left', 'right', 'up', 'down'];
@@ -9,10 +9,13 @@ const SUN_DIRS: SunDirection[] = ['left', 'right', 'up', 'down'];
 // 0b111 / 0b110 / 0b101 ever appear in v1 codes and can be used as version flags.
 //   0b111 = v2 (boolean edge arches)
 //   0b110 = v3 (2-bit edge arch levels: 0/1/2)
-//   0b101 = v4 (adds soulSwapEnabled header bit + per-tile soul/key footplate bits)
+//   0b101 = v4 (soulSwapEnabled header bit + soul/key footplate bits; object code 14
+//               = triangle wall, decoded into the tile's `triangle` field)
 const V2_MARKER = 0b111;
 const V3_MARKER = 0b110;
 const V4_MARKER = 0b101;
+
+const TRI_CORNERS: TriangleCorner[] = ['tl', 'tr', 'bl', 'br'];
 
 function pushBits(bits: number[], value: number, count: number): void {
   for (let i = count - 1; i >= 0; i--) {
@@ -116,8 +119,16 @@ export function encodeLevelCode(level: Level): string {
 
   for (let r = 0; r < level.height; r++) {
     for (let c = 0; c < level.width; c++) {
-      encodeTileV4(bits, level.tiles[r][c]);
-      encodeObject(bits, level.objects[r][c]);
+      const tile = level.tiles[r][c];
+      encodeTileV4(bits, tile);
+      // A triangle wall is stored in the object slot as code 14 + 2-bit corner.
+      // (A saved/editor tile won't hold both a triangle and a resting object.)
+      if (tile.triangle) {
+        pushBits(bits, 14, 4);
+        pushBits(bits, Math.max(0, TRI_CORNERS.indexOf(tile.triangle)), 2);
+      } else {
+        encodeObject(bits, level.objects[r][c]);
+      }
     }
   }
 
@@ -189,7 +200,7 @@ export function decodeLevelCode(code: string): Level | null {
           isKeyTile = readBits(bits, pos, 1) === 1; pos += 1;
         }
 
-        tiles[r].push({
+        const tile: Tile = {
           isWarm,
           isShade: isRowArch || isColumnArch,
           isFlake,
@@ -200,7 +211,8 @@ export function decodeLevelCode(code: string): Level | null {
           edgeArchLeft,
           isSoulSwap,
           isKeyTile,
-        });
+        };
+        tiles[r].push(tile);
 
         const objType = readBits(bits, pos, 4); pos += 4;
         let obj: GameObject | null = null;
@@ -225,6 +237,12 @@ export function decodeLevelCode(code: string): Level | null {
           case 11: obj = { type: 'laser', size: 1, isMelting: false, laserDirection: 'left',  createdAt: 0 }; break;
           case 12: obj = { type: 'laser', size: 1, isMelting: false, laserDirection: 'up',    createdAt: 0 }; break;
           case 13: obj = { type: 'laser', size: 1, isMelting: false, laserDirection: 'down',  createdAt: 0 }; break;
+          case 14: {
+            // Triangle wall — stored in the object slot, applied to the tile.
+            const cornerIdx = readBits(bits, pos, 2); pos += 2;
+            tile.triangle = TRI_CORNERS[cornerIdx] ?? 'tl';
+            break;
+          }
           default: break;
         }
 

@@ -1,5 +1,14 @@
-import { Level, GameObject, Position, Direction } from '../types';
-import { getDirectionDelta, isInBounds, getObjectHeight } from '../utils/level';
+import { Level, GameObject, Position, Direction, TriangleCorner } from '../types';
+import { getDirectionDelta, getOppositeDirection, isInBounds, getObjectHeight } from '../utils/level';
+
+// Triangle wall: the right-angle corner has two solid leg edges. Moving across a
+// solid edge (in or out) is blocked; the other two edges are open (passable).
+const TRI_SOLID: Record<TriangleCorner, Direction[]> = {
+  tl: ['up', 'left'],
+  tr: ['up', 'right'],
+  bl: ['down', 'left'],
+  br: ['down', 'right'],
+};
 
 export function getNextPos(pos: Position, dir: Direction): Position {
   const delta = getDirectionDelta(dir);
@@ -59,6 +68,12 @@ export function canEnterTile(level: Level, pos: Position, dir: Direction, obj: G
     if (height > 1) return false;
   }
 
+  // Triangle wall: entering `pos` moving `dir` crosses pos's opposite-dir edge.
+  // Blocked if that edge is a solid leg.
+  if (tile.triangle && TRI_SOLID[tile.triangle].includes(getOppositeDirection(dir))) {
+    return false;
+  }
+
   return true;
 }
 
@@ -73,6 +88,11 @@ export function canLeaveTile(level: Level, pos: Position, dir: Direction, obj: G
   if (tile.isColumnArch) {
     if (dir === 'up' || dir === 'down') return false;
     if (height > 1) return false;
+  }
+
+  // Triangle wall: leaving `pos` in `dir` crosses pos's dir edge. Blocked if solid.
+  if (tile.triangle && TRI_SOLID[tile.triangle].includes(dir)) {
+    return false;
   }
 
   return true;
@@ -104,6 +124,7 @@ export function getPerpendicularDirs(dir: Direction): [Direction, Direction] {
  *  - Wall / block / tree / laser object at the next cell
  *  - A perpendicular tunnel between `pos` and the next cell (i.e., the rowArch /
  *    columnArch oriented to block the push direction)
+ *  - A triangle wall whose solid leg edge faces the push
  *
  * Edge arches do NOT back force/build, regardless of their height.
  */
@@ -118,10 +139,15 @@ export function isBacked(level: Level, pos: Position, dir: Direction): boolean {
     return SOLID_BACKERS.has(nextObj.type);
   }
 
-  // Check perpendicular tunnel blockage (existing arch-tile semantics): rowArch
-  // blocks left/right movement; columnArch blocks up/down movement.
   const tile = level.tiles[pos.row][pos.col];
   const nextTile = level.tiles[nextPos.row][nextPos.col];
+
+  // Triangle solid leg edge backs the push like a wall.
+  if (tile.triangle && TRI_SOLID[tile.triangle].includes(dir)) return true;
+  if (nextTile.triangle && TRI_SOLID[nextTile.triangle].includes(getOppositeDirection(dir))) return true;
+
+  // Check perpendicular tunnel blockage (existing arch-tile semantics): rowArch
+  // blocks left/right movement; columnArch blocks up/down movement.
   const isHorz = dir === 'left' || dir === 'right';
   if (isHorz) {
     if (tile.isRowArch || nextTile.isRowArch) return true;

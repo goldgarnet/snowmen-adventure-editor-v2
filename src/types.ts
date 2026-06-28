@@ -2,6 +2,15 @@ export type SunDirection = 'left' | 'right' | 'up' | 'down';
 export type ObjectType = 'player' | 'snowball' | 'snowman' | 'block' | 'wall' | 'tree' | 'laser';
 export type Direction = 'left' | 'right' | 'up' | 'down';
 
+// Triangle wall orientation: which corner holds the right angle (the two solid legs
+// meet there). The opposite diagonal (hypotenuse) is the reflective mirror face.
+// The triangle occupies ~half the cell as a corner wedge; objects/players may share
+// the cell. A rolling snowball that enters across an open edge reflects 90°; the two
+// solid leg edges block crossing.
+//   tl = ◤ (solid top+left)   tr = ◥ (solid top+right)
+//   bl = ◣ (solid bottom+left) br = ◢ (solid bottom+right)
+export type TriangleCorner = 'tl' | 'tr' | 'bl' | 'br';
+
 export interface Tile {
   isWarm: boolean;
   isShade: boolean;
@@ -22,6 +31,8 @@ export interface Tile {
   // Key footplate: while any key tile exists on the map, the goal is only active
   // when every key tile is covered by an object.
   isKeyTile?: boolean;
+  // Triangle wall (half-cell corner mirror). Undefined = none.
+  triangle?: TriangleCorner;
 }
 
 export interface GameObject {

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Level, SunDirection, Tile, GameObject } from '../types';
+import { Level, SunDirection, Tile, GameObject, TriangleCorner } from '../types';
 import { createDefaultTile, createLevel, cloneLevel, deserializeLevel } from '../utils/level';
 import { encodeLevelCode, decodeLevelCode } from '../utils/levelCode';
 import Grid from './Grid';
@@ -27,10 +27,13 @@ type EditorTool =
   | 'block'
   | 'tree'
   | 'laser'
+  | 'triangle'
   | 'eraser';
 
 const DRAG_TOOLS: EditorTool[] = ['warm', 'cool', 'flake', 'soulSwap', 'keyTile', 'wall', 'eraser'];
 const EDGE_TOOLS: EditorTool[] = ['edgeArch1', 'edgeArch2', 'eraser'];
+
+const TRI_LABEL: Record<TriangleCorner, string> = { tl: '◤', tr: '◥', bl: '◣', br: '◢' };
 
 interface Pos { r: number; c: number; }
 interface BBox { minR: number; maxR: number; minC: number; maxC: number; }
@@ -79,6 +82,7 @@ export default function Editor({ level, setLevel }: EditorProps) {
   const [selectedTool, setSelectedTool] = useState<EditorTool>('warm');
   const [treeHeight, setTreeHeight] = useState<number>(2);
   const [laserDir, setLaserDir] = useState<'right'|'left'|'up'|'down'>('right');
+  const [triCorner, setTriCorner] = useState<TriangleCorner>('tl');
   const [showImportExport, setShowImportExport] = useState(false);
   const [jsonText, setJsonText] = useState('');
   const [copyMsg, setCopyMsg] = useState(false);
@@ -438,6 +442,9 @@ export default function Editor({ level, setLevel }: EditorProps) {
       case 'laser':
         lv.objects[row][col] = { type: 'laser', size: 1, isMelting: false, laserDirection: laserDir, createdAt: 0 };
         break;
+      case 'triangle':
+        tile.triangle = triCorner;
+        break;
       case 'eraser':
         lv.objects[row][col] = null;
         tile.isFlake = false;
@@ -447,6 +454,7 @@ export default function Editor({ level, setLevel }: EditorProps) {
         tile.isShade = false;
         tile.isSoulSwap = false;
         tile.isKeyTile = false;
+        tile.triangle = undefined;
         // Note: edge arches are erased via handleEdgeClick when clicking edges.
         break;
     }
@@ -561,11 +569,12 @@ export default function Editor({ level, setLevel }: EditorProps) {
   const objectTools: { id: EditorTool; label: string; emoji: string }[] = [
     { id: 'player', label: '플레이어', emoji: '⛄' },
     { id: 'wall', label: '벽', emoji: '🧱' },
-    { id: 'snowballLarge', label: '큰 눈덩이', emoji: '⚪' },
-    { id: 'snowballSmall', label: '작은 눈덩이', emoji: '🔵' },
+    { id: 'laser', label: '레이저', emoji: '🔴' },
+    { id: 'triangle', label: '삼각 벽', emoji: '📐' },
     { id: 'block', label: '블록', emoji: '📦' },
     { id: 'tree', label: '나무', emoji: '🌲' },
-    { id: 'laser', label: '레이저', emoji: '🔴' },
+    { id: 'snowballLarge', label: '큰 눈덩이', emoji: '⚪' },
+    { id: 'snowballSmall', label: '작은 눈덩이', emoji: '🔵' },
   ];
 
   const snowmanTools: { id: EditorTool; label: string; emoji: string }[] = [
@@ -689,6 +698,20 @@ export default function Editor({ level, setLevel }: EditorProps) {
                     style={{flex:1,padding:'3px 0',fontSize:13,background:laserDir===d?'#c03020':'transparent',color:laserDir===d?'#fff':'#ccc',border:'1px solid #555',borderRadius:4,cursor:'pointer'}}
                     onClick={() => setLaserDir(d)}>
                     {d==='left'?'←':d==='right'?'→':d==='up'?'↑':'↓'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {selectedTool === 'triangle' && (
+            <div className="tree-height-input">
+              <span style={{fontSize:12,color:'#aaa',marginBottom:4,display:'block'}}>삼각 벽 방향 (직각 = 솔리드 모서리)</span>
+              <div style={{display:'flex',gap:4}}>
+                {(['tl','tr','bl','br'] as TriangleCorner[]).map(corner => (
+                  <button key={corner}
+                    style={{flex:1,padding:'3px 0',fontSize:16,background:triCorner===corner?'#3a6ec2':'transparent',color:triCorner===corner?'#fff':'#ccc',border:'1px solid #555',borderRadius:4,cursor:'pointer'}}
+                    onClick={() => setTriCorner(corner)}>
+                    {TRI_LABEL[corner]}
                   </button>
                 ))}
               </div>
