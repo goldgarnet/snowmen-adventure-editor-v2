@@ -5,12 +5,14 @@ const SUN_DIRS: SunDirection[] = ['left', 'right', 'up', 'down'];
 
 // Version marker: 3 bits immediately after sentinel.
 // In v1 codes the bits immediately after the sentinel are width-2's high bits
-// (width is 2..20 → width-2 is 0..18 → high 3 bits ∈ 0b000..0b100), so neither
-// 0b111 nor 0b110 ever appear in v1 codes and can be used as version flags.
+// (width is 2..20 → width-2 is 0..18 → high 3 bits ∈ 0b000..0b100), so none of
+// 0b111 / 0b110 / 0b101 ever appear in v1 codes and can be used as version flags.
 //   0b111 = v2 (boolean edge arches)
 //   0b110 = v3 (2-bit edge arch levels: 0/1/2)
+//   0b101 = v4 (adds soulSwapEnabled header bit + per-tile soul/key footplate bits)
 const V2_MARKER = 0b111;
 const V3_MARKER = 0b110;
+const V4_MARKER = 0b101;
 
 function pushBits(bits: number[], value: number, count: number): void {
   for (let i = count - 1; i >= 0; i--) {
@@ -26,7 +28,7 @@ function readBits(bits: number[], offset: number, count: number): number {
   return val;
 }
 
-function encodeTileV3(bits: number[], tile: Tile): void {
+function encodeTileV4(bits: number[], tile: Tile): void {
   pushBits(bits, tile.isWarm ? 1 : 0, 1);
   pushBits(bits, tile.isFlake ? 1 : 0, 1);
   pushBits(bits, tile.isGoal ? 1 : 0, 1);
@@ -35,6 +37,9 @@ function encodeTileV3(bits: number[], tile: Tile): void {
   // 2 bits per edge field: 0 = none, 1 = height-1 arch, 2 = height-2 arch.
   pushBits(bits, Math.min(3, Math.max(0, tile.edgeArchTop ?? 0)), 2);
   pushBits(bits, Math.min(3, Math.max(0, tile.edgeArchLeft ?? 0)), 2);
+  // v4 footplates
+  pushBits(bits, tile.isSoulSwap ? 1 : 0, 1);
+  pushBits(bits, tile.isKeyTile ? 1 : 0, 1);
 }
 
 function encodeObject(bits: number[], obj: GameObject | null): void {
@@ -100,17 +105,18 @@ export function encodeLevelCode(level: Level): string {
 
   // Sentinel
   bits.push(1);
-  // v3 marker
-  pushBits(bits, V3_MARKER, 3);
+  // v4 marker
+  pushBits(bits, V4_MARKER, 3);
 
   pushBits(bits, level.width - 2, 5);
   pushBits(bits, level.height - 2, 5);
   pushBits(bits, SUN_DIRS.indexOf(level.sunDirection), 2);
   pushBits(bits, level.hasShadow ? 1 : 0, 1);
+  pushBits(bits, level.soulSwapEnabled ? 1 : 0, 1);
 
   for (let r = 0; r < level.height; r++) {
     for (let c = 0; c < level.width; c++) {
-      encodeTileV3(bits, level.tiles[r][c]);
+      encodeTileV4(bits, level.tiles[r][c]);
       encodeObject(bits, level.objects[r][c]);
     }
   }
@@ -129,9 +135,11 @@ export function decodeLevelCode(code: string): Level | null {
 
     // Detect version by checking 3-bit marker
     const marker = readBits(bits, pos, 3);
+    const isV4 = marker === V4_MARKER;
     const isV3 = marker === V3_MARKER;
     const isV2 = marker === V2_MARKER;
-    const isV2OrLater = isV2 || isV3;
+    const isV2OrLater = isV2 || isV3 || isV4;
+    const edge2bit = isV3 || isV4;
     if (isV2OrLater) pos += 3;
 
     const width = readBits(bits, pos, 5) + 2; pos += 5;
@@ -144,6 +152,10 @@ export function decodeLevelCode(code: string): Level | null {
     let hasShadow = true;
     if (isV2OrLater) {
       hasShadow = readBits(bits, pos, 1) === 1; pos += 1;
+    }
+    let soulSwapEnabled = false;
+    if (isV4) {
+      soulSwapEnabled = readBits(bits, pos, 1) === 1; pos += 1;
     }
 
     const tiles: Tile[][] = [];
@@ -161,13 +173,20 @@ export function decodeLevelCode(code: string): Level | null {
 
         let edgeArchTop = 0;
         let edgeArchLeft = 0;
-        if (isV3) {
+        if (edge2bit) {
           edgeArchTop = readBits(bits, pos, 2); pos += 2;
           edgeArchLeft = readBits(bits, pos, 2); pos += 2;
         } else if (isV2) {
           // v2: 1 bit per edge — interpret as height-1 arch
           edgeArchTop = readBits(bits, pos, 1) === 1 ? 1 : 0; pos += 1;
           edgeArchLeft = readBits(bits, pos, 1) === 1 ? 1 : 0; pos += 1;
+        }
+
+        let isSoulSwap = false;
+        let isKeyTile = false;
+        if (isV4) {
+          isSoulSwap = readBits(bits, pos, 1) === 1; pos += 1;
+          isKeyTile = readBits(bits, pos, 1) === 1; pos += 1;
         }
 
         tiles[r].push({
@@ -179,6 +198,8 @@ export function decodeLevelCode(code: string): Level | null {
           isColumnArch,
           edgeArchTop,
           edgeArchLeft,
+          isSoulSwap,
+          isKeyTile,
         });
 
         const objType = readBits(bits, pos, 4); pos += 4;
@@ -211,7 +232,7 @@ export function decodeLevelCode(code: string): Level | null {
       }
     }
 
-    return { width, height, sunDirection, hasShadow, tiles, objects };
+    return { width, height, sunDirection, hasShadow, soulSwapEnabled, tiles, objects };
   } catch {
     return null;
   }

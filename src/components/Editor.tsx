@@ -13,6 +13,8 @@ type EditorTool =
   | 'goal'
   | 'rowTunnel'
   | 'columnTunnel'
+  | 'soulSwap'
+  | 'keyTile'
   | 'edgeArch1'
   | 'edgeArch2'
   | 'player'
@@ -27,7 +29,7 @@ type EditorTool =
   | 'laser'
   | 'eraser';
 
-const DRAG_TOOLS: EditorTool[] = ['warm', 'cool', 'flake', 'wall', 'eraser'];
+const DRAG_TOOLS: EditorTool[] = ['warm', 'cool', 'flake', 'soulSwap', 'keyTile', 'wall', 'eraser'];
 const EDGE_TOOLS: EditorTool[] = ['edgeArch1', 'edgeArch2', 'eraser'];
 
 interface Pos { r: number; c: number; }
@@ -81,6 +83,30 @@ export default function Editor({ level, setLevel }: EditorProps) {
   const [jsonText, setJsonText] = useState('');
   const [copyMsg, setCopyMsg] = useState(false);
   const dragLevelRef = useRef<Level | null>(null);
+
+  // === Undo / redo stacks ===
+  const [undoStack, setUndoStack] = useState<Level[]>([]);
+  const [redoStack, setRedoStack] = useState<Level[]>([]);
+  // Snapshot the current level as one undo step. Call at the start of each discrete
+  // edit gesture (e.g. mousedown), not on every drag frame.
+  const pushUndo = () => {
+    setUndoStack((s) => [...s, cloneLevel(level)]);
+    setRedoStack([]);
+  };
+  const undo = () => {
+    if (undoStack.length === 0) return;
+    const prev = undoStack[undoStack.length - 1];
+    setUndoStack((s) => s.slice(0, -1));
+    setRedoStack((r) => [...r, cloneLevel(level)]);
+    setLevel(prev);
+  };
+  const redo = () => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setRedoStack((r) => r.slice(0, -1));
+    setUndoStack((s) => [...s, cloneLevel(level)]);
+    setLevel(next);
+  };
 
   // === Selection / move state (used by the 'select' tool) ===
   const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -146,6 +172,8 @@ export default function Editor({ level, setLevel }: EditorProps) {
       const raw = { dr: drag.current.r - drag.anchor.r, dc: drag.current.c - drag.anchor.c };
       const delta = clampDelta(drag.bbox, raw, level.width, level.height);
       if (delta.dr !== 0 || delta.dc !== 0) {
+        setUndoStack((s) => [...s, cloneLevel(level)]);
+        setRedoStack([]);
         const newLevel = cloneLevel(level);
         // Clear source cells first (in case source and destination overlap).
         for (const cell of drag.snapshot) {
@@ -183,6 +211,8 @@ export default function Editor({ level, setLevel }: EditorProps) {
         setSelection(new Set());
         setDrag(null);
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && selection.size > 0 && selectedTool === 'select') {
+        setUndoStack((s) => [...s, cloneLevel(level)]);
+        setRedoStack([]);
         const newLevel = cloneLevel(level);
         for (const k of selection) {
           const [r, c] = k.split(',').map(Number);
@@ -196,6 +226,25 @@ export default function Editor({ level, setLevel }: EditorProps) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [selection, level, selectedTool, setLevel]);
+
+  // Undo/redo keyboard shortcuts (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      } else if (k === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undoStack, redoStack, level]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear selection when switching away from select tool.
   useEffect(() => {
@@ -243,6 +292,7 @@ export default function Editor({ level, setLevel }: EditorProps) {
       handleSelectStart(row, col);
       return;
     }
+    pushUndo();
     const newLevel = cloneLevel(level);
     applyTool(newLevel, row, col, selectedTool);
     if (DRAG_TOOLS.includes(selectedTool)) {
@@ -269,6 +319,7 @@ export default function Editor({ level, setLevel }: EditorProps) {
   // returns a fully-default tile.
   const eraseDragRef = useRef<Level | null>(null);
   const eraseCell = (row: number, col: number) => {
+    if (eraseDragRef.current === null) pushUndo(); // one undo step per right-drag
     const base = eraseDragRef.current ?? level;
     const newLevel = cloneLevel(base);
     newLevel.tiles[row][col] = createDefaultTile();
@@ -279,6 +330,7 @@ export default function Editor({ level, setLevel }: EditorProps) {
 
   // Right-click on an edge strip: clear just that edge arch.
   const eraseEdge = (row: number, col: number, side: 'top' | 'left') => {
+    pushUndo();
     const newLevel = cloneLevel(level);
     const tile = newLevel.tiles[row][col];
     if (side === 'top') tile.edgeArchTop = 0;
@@ -295,6 +347,7 @@ export default function Editor({ level, setLevel }: EditorProps) {
 
   const handleEdgeClick = (row: number, col: number, side: 'top' | 'left') => {
     if (!EDGE_TOOLS.includes(selectedTool)) return;
+    pushUndo();
     const newLevel = cloneLevel(level);
     const tile = newLevel.tiles[row][col];
     if (selectedTool === 'edgeArch1' || selectedTool === 'edgeArch2') {
@@ -342,6 +395,12 @@ export default function Editor({ level, setLevel }: EditorProps) {
         tile.isShade = true;
         tile.isWarm = false;
         break;
+      case 'soulSwap':
+        tile.isSoulSwap = true;
+        break;
+      case 'keyTile':
+        tile.isKeyTile = true;
+        break;
       case 'edgeArch1':
       case 'edgeArch2':
         // Edge arches are placed via handleEdgeClick, not cell click. No-op here.
@@ -386,6 +445,8 @@ export default function Editor({ level, setLevel }: EditorProps) {
         tile.isRowArch = false;
         tile.isColumnArch = false;
         tile.isShade = false;
+        tile.isSoulSwap = false;
+        tile.isKeyTile = false;
         // Note: edge arches are erased via handleEdgeClick when clicking edges.
         break;
     }
@@ -394,11 +455,13 @@ export default function Editor({ level, setLevel }: EditorProps) {
   const resizeMap = (newWidth: number, newHeight: number) => {
     const w = Math.max(0, Math.min(30, newWidth));
     const h = Math.max(0, Math.min(30, newHeight));
+    pushUndo();
     const newLevel: Level = {
       width: w,
       height: h,
       sunDirection: level.sunDirection,
       hasShadow: level.hasShadow,
+      soulSwapEnabled: level.soulSwapEnabled,
       tiles: [],
       objects: [],
     };
@@ -419,10 +482,12 @@ export default function Editor({ level, setLevel }: EditorProps) {
   };
 
   const resetMap = () => {
+    pushUndo();
     setLevel(createLevel(level.width, level.height));
   };
 
   const fillAll = (warm: boolean) => {
+    pushUndo();
     const newLevel = cloneLevel(level);
     for (let r = 0; r < newLevel.height; r++)
       for (let c = 0; c < newLevel.width; c++) {
@@ -433,9 +498,22 @@ export default function Editor({ level, setLevel }: EditorProps) {
   };
 
   const toggleShadow = () => {
+    pushUndo();
     const newLevel = cloneLevel(level);
     newLevel.hasShadow = !newLevel.hasShadow;
     setLevel(newLevel);
+  };
+
+  const toggleSoulSwap = () => {
+    pushUndo();
+    const newLevel = cloneLevel(level);
+    newLevel.soulSwapEnabled = !newLevel.soulSwapEnabled;
+    setLevel(newLevel);
+  };
+
+  const setSun = (dir: SunDirection) => {
+    pushUndo();
+    setLevel({ ...cloneLevel(level), sunDirection: dir });
   };
 
   const handleExport = () => {
@@ -454,6 +532,7 @@ export default function Editor({ level, setLevel }: EditorProps) {
       ? deserializeLevel(text)
       : decodeLevelCode(text);
     if (imported) {
+      pushUndo();
       setLevel(imported);
       setShowImportExport(false);
     } else {
@@ -475,6 +554,8 @@ export default function Editor({ level, setLevel }: EditorProps) {
     { id: 'goal', label: '골', emoji: '⭐' },
     { id: 'columnTunnel', label: '가로 터널', emoji: '🚇' },
     { id: 'rowTunnel', label: '세로 터널', emoji: '🚇' },
+    { id: 'soulSwap', label: '영혼 발판', emoji: '🌀' },
+    { id: 'keyTile', label: '열쇠 발판', emoji: '🗝️' },
   ];
 
   const objectTools: { id: EditorTool; label: string; emoji: string }[] = [
@@ -514,6 +595,11 @@ export default function Editor({ level, setLevel }: EditorProps) {
             onClick={toggleShadow}>
             그림자: {level.hasShadow ? 'ON' : 'OFF'}
           </button>
+          <button className={`shadow-toggle ${level.soulSwapEnabled ? 'on' : 'off'}`}
+            onClick={toggleSoulSwap}
+            title="켜면 시뮬레이터에서 M키로 눈사람 큐를 순회하며 영혼을 옮길 수 있습니다.">
+            영혼 이동(M): {level.soulSwapEnabled ? 'ON' : 'OFF'}
+          </button>
           <div className="sun-section">
             <span className="sun-label">해 방향</span>
             <div className="sun-controls">
@@ -521,7 +607,7 @@ export default function Editor({ level, setLevel }: EditorProps) {
                 <button key={dir}
                   disabled={!level.hasShadow}
                   className={level.sunDirection === dir ? 'active' : ''}
-                  onClick={() => setLevel({ ...cloneLevel(level), sunDirection: dir })}>
+                  onClick={() => setSun(dir)}>
                   {dir === 'left' ? '←' : dir === 'right' ? '→' : dir === 'up' ? '↑' : '↓'}
                 </button>
               ))}
@@ -619,7 +705,11 @@ export default function Editor({ level, setLevel }: EditorProps) {
 
         <section className="editor-section">
           <h3>동작</h3>
-          <div className="action-col">
+          <div className="action-row">
+            <button onClick={undo} disabled={undoStack.length === 0}>↩ 실행취소</button>
+            <button onClick={redo} disabled={redoStack.length === 0}>↪ 다시실행</button>
+          </div>
+          <div className="action-col" style={{ marginTop: 6 }}>
             <button onClick={() => fillAll(true)}>🟧 따뜻한 칸으로 채우기</button>
             <button onClick={() => fillAll(false)}>🟦 차가운 칸으로 채우기</button>
             <button onClick={resetMap} className="danger-btn">🗑️ 초기화</button>

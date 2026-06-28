@@ -1,6 +1,6 @@
 import { Level, GameObject, Position, Direction } from '../types';
 import { isInBounds } from '../utils/level';
-import { getNextPos, canMoveTo, isBacked } from './helpers';
+import { getNextPos, canMoveTo, canLeaveTile, canPassEdge, isBacked } from './helpers';
 import { rollSnowball, rollSnowballGroup } from './roll';
 import { applyForce } from './force';
 
@@ -101,6 +101,11 @@ function resolvePush(
   const objA = level.objects[posA.row][posA.col]!;
   const aCanMove = canMoveTo(level, posA, dir, objA) && !b.exists;
   const aCanMoveIntoB = canMoveTo(level, posA, dir, objA);
+  // For "force" (crash/split) we don't need A to ENTER B — only to be able to leave
+  // its own tile and cross the edge toward B. This makes a snowball pressed against
+  // the board edge crash (leave a flake) exactly like one pressed against a wall;
+  // canMoveTo would wrongly return false for the out-of-bounds edge case.
+  const aCanPress = canLeaveTile(level, posA, dir, objA) && canPassEdge(level, posA, dir, objA);
 
   // For force/build backing: does the cell behind B back the push?
   // (wall/block/tree/OOB/perpendicular tunnel/edge-arch blocking heavy objects)
@@ -121,7 +126,7 @@ function resolvePush(
     if (!c.exists) {
       // A+B, C=NULL (posC in bounds and empty, OR posB OOB)
       if (a.isSnowball && a.size === 1 && (b.isWall || b.isBlock)) {
-        if (aCanMoveIntoB) return doForceA(level, posA, dir, turnCount);
+        if (aCanPress) return doForceA(level, posA, dir, turnCount);
         return { level, playerMoved: false };
       }
       if (a.isSnowball && a.size === 1 && b.isSnowball && b.size === 1) {

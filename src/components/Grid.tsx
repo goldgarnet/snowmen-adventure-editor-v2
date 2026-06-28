@@ -98,6 +98,15 @@ export default function Grid({
     }
   }
 
+  // Goal is "locked" (shown muted) when key footplates exist and any is uncovered
+  // by an object (the player counts too) — mirrors the engine's isGoalActive rule.
+  let goalActive = true;
+  for (let r = 0; r < level.height && goalActive; r++) {
+    for (let c = 0; c < level.width; c++) {
+      if (level.tiles[r][c].isKeyTile && !level.objects[r][c]) { goalActive = false; break; }
+    }
+  }
+
   return (
     <div ref={wrapperRef} className="grid-wrapper">
       <div className="grid-stack"
@@ -125,8 +134,11 @@ export default function Grid({
                 tile.isShade ? 'shaded' : '',
                 tile.isFlake ? 'flake' : '',
                 tile.isGoal ? 'goal' : '',
+                tile.isGoal && !goalActive ? 'goal-locked' : '',
                 tile.isRowArch ? 'row-arch' : '',
                 tile.isColumnArch ? 'col-arch' : '',
+                tile.isSoulSwap ? 'soul' : '',
+                tile.isKeyTile ? 'key' : '',
               ].filter(Boolean).join(' ');
 
               return (
@@ -149,11 +161,13 @@ export default function Grid({
                   onContextMenu={(e) => e.preventDefault()}
                   style={{ width: cellSize, height: cellSize, position: 'relative' }}
                 >
-                  {tile.isGoal && <GoalOverlay size={cellSize} />}
+                  {tile.isGoal && <GoalOverlay size={cellSize} locked={!goalActive} />}
                   {tile.isFlake && !obj && <FlakeOverlay size={cellSize} />}
                   {(tile.isRowArch || tile.isColumnArch) && (
                     <TunnelOverlay size={cellSize} isRow={tile.isRowArch} />
                   )}
+                  {tile.isSoulSwap && <SoulSwapOverlay size={cellSize} />}
+                  {tile.isKeyTile && <KeyTileOverlay size={cellSize} />}
                   {obj && (
                     <div className={`object obj-${obj.type} size-${obj.size} ${highlightPlayer && obj.type === 'player' ? 'player-highlight' : ''} ${obj.isMelting ? 'melting' : ''}`}>
                       {renderObject(obj, cellSize)}
@@ -305,7 +319,20 @@ function ArchSegment({ left, top, width, height, level, orientation }: {
   );
 }
 
-function GoalOverlay({ size }: { size: number }) {
+function GoalOverlay({ size, locked }: { size: number; locked?: boolean }) {
+  if (locked) {
+    // Goal disabled by uncovered key footplates: muted grey star with a padlock.
+    return (
+      <svg className="tile-overlay" width={size} height={size} viewBox="0 0 40 40">
+        <polygon points="20,6 23.5,15 33,15 25.5,21 28,30 20,25 12,30 14.5,21 7,15 16.5,15"
+          fill="none" stroke="#8a94a2" strokeWidth="1.3" opacity="0.45" />
+        <rect x="15" y="20" width="10" height="8" rx="1.5" fill="#5a6470" opacity="0.9" />
+        <path d="M17,20 v-2.2 a3,3 0 0 1 6,0 V20" fill="none" stroke="#5a6470"
+          strokeWidth="1.7" opacity="0.9" />
+        <circle cx="20" cy="23.5" r="1.2" fill="#cdd4dc" />
+      </svg>
+    );
+  }
   return (
     <svg className="tile-overlay goal-overlay" width={size} height={size} viewBox="0 0 40 40">
       <defs>
@@ -367,6 +394,34 @@ function TunnelOverlay({ size, isRow }: { size: number; isRow: boolean }) {
           <line x1="22" y1="20" x2="26" y2="20" stroke="#8888aa" strokeWidth="1" opacity="0.5" />
         </g>
       )}
+    </svg>
+  );
+}
+
+function SoulSwapOverlay({ size }: { size: number }) {
+  return (
+    <svg className="tile-overlay soul-overlay" width={size} height={size} viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="14" fill="none" stroke="#a86cff" strokeWidth="1" opacity="0.35" />
+      <path d="M20,8 A12,12 0 1 1 8,20" fill="none" stroke="#b98cff" strokeWidth="2.4"
+        strokeLinecap="round" opacity="0.85" />
+      <path d="M20,32 A12,12 0 1 1 32,20" fill="none" stroke="#b98cff" strokeWidth="2.4"
+        strokeLinecap="round" opacity="0.85" />
+      <circle cx="20" cy="20" r="3" fill="#d9b8ff" opacity="0.9" />
+    </svg>
+  );
+}
+
+function KeyTileOverlay({ size }: { size: number }) {
+  return (
+    <svg className="tile-overlay key-overlay" width={size} height={size} viewBox="0 0 40 40">
+      <rect x="6" y="6" width="28" height="28" rx="3" fill="none"
+        stroke="#e0b84a" strokeWidth="1.6" strokeDasharray="3 2.5" opacity="0.8" />
+      <g stroke="#e6c25a" strokeWidth="2.2" fill="none" strokeLinecap="round" opacity="0.9">
+        <circle cx="16" cy="17" r="4" />
+        <line x1="19" y1="20" x2="27" y2="28" />
+        <line x1="24" y1="25" x2="27" y2="22" />
+        <line x1="27" y1="28" x2="30" y2="25" />
+      </g>
     </svg>
   );
 }

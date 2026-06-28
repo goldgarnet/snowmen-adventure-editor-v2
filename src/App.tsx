@@ -27,6 +27,8 @@ function levelToGameJSON(level: Level): object {
       if (tile.isGoal) t.isGoal = true;
       if (tile.edgeArchTop) t.edgeArchTop = tile.edgeArchTop;
       if (tile.edgeArchLeft) t.edgeArchLeft = tile.edgeArchLeft;
+      if (tile.isSoulSwap) t.isSoulSwap = true;
+      if (tile.isKeyTile) t.isKeyTile = true;
       return t;
     })
   );
@@ -36,6 +38,7 @@ function levelToGameJSON(level: Level): object {
     name: '새 레벨',
     grid: { width: level.width, height: level.height },
     sunDirection: level.sunDirection,
+    soulSwapEnabled: level.soulSwapEnabled,
     tiles,
     objects,
   };

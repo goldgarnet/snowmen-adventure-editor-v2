@@ -16,6 +16,12 @@ export interface Tile {
   // - edgeArchLeft: arch on the edge between this tile and the tile to the left (blocks horizontal movement)
   edgeArchTop?: number;
   edgeArchLeft?: number;
+  // Soul-swap footplate: when the player steps onto it, the soul moves to another
+  // snowman (nearest rule); the old body is left behind as a snowman.
+  isSoulSwap?: boolean;
+  // Key footplate: while any key tile exists on the map, the goal is only active
+  // when every key tile is covered by an object.
+  isKeyTile?: boolean;
 }
 
 export interface GameObject {
@@ -37,6 +43,8 @@ export interface Level {
   height: number;
   sunDirection: SunDirection;
   hasShadow: boolean;
+  // When true, the player may press M to cycle the soul through the snowman queue.
+  soulSwapEnabled: boolean;
   tiles: Tile[][];
   objects: (GameObject | null)[][];
 }

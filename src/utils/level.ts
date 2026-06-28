@@ -29,6 +29,7 @@ export function createLevel(width: number, height: number): Level {
     height,
     sunDirection: 'left',
     hasShadow: true,
+    soulSwapEnabled: false,
     tiles,
     objects,
   };
@@ -80,6 +81,7 @@ export function cloneLevel(level: Level): Level {
     height: level.height,
     sunDirection: level.sunDirection,
     hasShadow: level.hasShadow,
+    soulSwapEnabled: level.soulSwapEnabled,
     tiles: level.tiles.map(row => row.map(tile => ({ ...tile }))),
     objects: level.objects.map(row =>
       row.map(obj => (obj ? { ...obj } : null))
@@ -114,6 +116,7 @@ export function deserializeLevel(json: string): Level | null {
     ) {
       // Fill in missing hasShadow with default true
       if (typeof parsed.hasShadow !== 'boolean') parsed.hasShadow = true;
+      if (typeof parsed.soulSwapEnabled !== 'boolean') parsed.soulSwapEnabled = false;
       return parsed as Level;
     }
     return null;

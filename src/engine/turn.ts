@@ -1,4 +1,4 @@
-import { Level, Direction, GameStatus } from '../types';
+import { Level, Direction, GameStatus, Position } from '../types';
 import { cloneLevel, findPlayer } from '../utils/level';
 import { recalcShadows } from './shadow';
 import { executePush } from './push';
@@ -12,6 +12,21 @@ const DIR_DELTA: Record<string, [number, number]> = {
   right: [0, 1], left: [0, -1], up: [-1, 0], down: [1, 0],
 };
 const LASER_BLOCKERS = new Set(['wall', 'block', 'tree', 'laser']);
+
+/**
+ * The goal is "active" (clearable) unless the level uses key footplates and one or
+ * more of them is not currently covered by an object (the player counts too). When
+ * no key tiles exist this is always true.
+ */
+export function isGoalActive(level: Level): boolean {
+  for (let r = 0; r < level.height; r++) {
+    for (let c = 0; c < level.width; c++) {
+      if (!level.tiles[r][c].isKeyTile) continue;
+      if (!level.objects[r][c]) return false;
+    }
+  }
+  return true;
+}
 
 function applyLaserCheck(level: Level): void {
   for (let r = 0; r < level.height; r++) {
@@ -48,7 +63,7 @@ export function executeSkipTurn(level: Level): TurnResult {
   if (!finalPlayerPos) return { level: newLevel, status: 'gameover' };
 
   const finalTile = newLevel.tiles[finalPlayerPos.row][finalPlayerPos.col];
-  if (finalTile.isGoal) return { level: newLevel, status: 'cleared' };
+  if (finalTile.isGoal && isGoalActive(newLevel)) return { level: newLevel, status: 'cleared' };
 
   return { level: newLevel, status: 'playing' };
 }
@@ -68,10 +83,21 @@ export function executeTurn(level: Level, dir: Direction): TurnResult {
     return { level: newLevel, status: 'playing' };
   }
 
-  const newPlayerPos = findPlayer(newLevel);
+  let newPlayerPos = findPlayer(newLevel);
+
+  // Soul-swap footplate: stepping onto it moves the soul to another snowman
+  // (nearest rule); the old body is left behind as a snowman.
+  if (newPlayerPos) {
+    const landTile = newLevel.tiles[newPlayerPos.row][newPlayerPos.col];
+    if (landTile.isSoulSwap) {
+      soulSwapNearest(newLevel, newPlayerPos, turnCount);
+      newPlayerPos = findPlayer(newLevel);
+    }
+  }
+
   if (newPlayerPos) {
     const tile = newLevel.tiles[newPlayerPos.row][newPlayerPos.col];
-    if (tile.isGoal) {
+    if (tile.isGoal && isGoalActive(newLevel)) {
       return { level: newLevel, status: 'cleared' };
     }
   }
@@ -85,7 +111,7 @@ export function executeTurn(level: Level, dir: Direction): TurnResult {
   }
 
   const finalTile = newLevel.tiles[finalPlayerPos.row][finalPlayerPos.col];
-  if (finalTile.isGoal) {
+  if (finalTile.isGoal && isGoalActive(newLevel)) {
     return { level: newLevel, status: 'cleared' };
   }
 
@@ -215,4 +241,70 @@ function soulTransfer(level: Level, playerPos: { row: number; col: number }): vo
     isMelting: false,
     createdAt: 0,
   };
+}
+
+// Swap which body holds the soul: the body at `fromPos` becomes a snowman, and the
+// snowman at `targetPos` becomes the player. Sizes are preserved.
+function doSoulSwap(level: Level, fromPos: Position, targetPos: Position, ts: number): void {
+  const body = level.objects[fromPos.row][fromPos.col];
+  const target = level.objects[targetPos.row][targetPos.col];
+  if (!body || !target) return;
+  level.objects[fromPos.row][fromPos.col] = {
+    type: 'snowman',
+    size: body.size,
+    isMelting: false,
+    createdAt: ts,
+  };
+  level.objects[targetPos.row][targetPos.col] = {
+    type: 'player',
+    size: target.size,
+    isMelting: false,
+    createdAt: 0,
+  };
+}
+
+// Voluntary transfer triggered by a soul-swap footplate: pick the nearest snowman
+// (tie-break: oldest), leaving the current body behind as a snowman.
+function soulSwapNearest(level: Level, fromPos: Position, ts: number): boolean {
+  const snowmen: { row: number; col: number; dist: number; createdAt: number }[] = [];
+  for (let r = 0; r < level.height; r++) {
+    for (let c = 0; c < level.width; c++) {
+      const obj = level.objects[r][c];
+      if (obj?.type === 'snowman') {
+        const dist = Math.sqrt((r - fromPos.row) ** 2 + (c - fromPos.col) ** 2);
+        snowmen.push({ row: r, col: c, dist, createdAt: obj.createdAt });
+      }
+    }
+  }
+  if (snowmen.length === 0) return false;
+  snowmen.sort((a, b) => (a.dist !== b.dist ? a.dist - b.dist : a.createdAt - b.createdAt));
+  const target = snowmen[0];
+  doSoulSwap(level, fromPos, { row: target.row, col: target.col }, ts);
+  return true;
+}
+
+/**
+ * M-key soul cycle: move the soul to the next snowman in reading order (top-left →
+ * bottom-right, wrapping). The old body becomes a snowman. Returns a new level, or
+ * null if the swap can't happen (no player, or no snowmen to move into).
+ * This is a free action — it does not advance the turn.
+ */
+export function cycleSoul(level: Level): Level | null {
+  const playerPos = findPlayer(level);
+  if (!playerPos) return null;
+
+  const snowmen: Position[] = [];
+  for (let r = 0; r < level.height; r++) {
+    for (let c = 0; c < level.width; c++) {
+      if (level.objects[r][c]?.type === 'snowman') snowmen.push({ row: r, col: c });
+    }
+  }
+  if (snowmen.length === 0) return null;
+
+  const playerKey = playerPos.row * level.width + playerPos.col;
+  const next = snowmen.find(p => p.row * level.width + p.col > playerKey) ?? snowmen[0];
+
+  const newLevel = cloneLevel(level);
+  doSoulSwap(newLevel, playerPos, next, Date.now());
+  return newLevel;
 }

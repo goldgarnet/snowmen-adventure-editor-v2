@@ -101,19 +101,21 @@ export function getPerpendicularDirs(dir: Direction): [Direction, Direction] {
  *
  * Per spec, backing conditions are exactly:
  *  - Map edge (out of bounds) — always counts as wall
- *  - Wall / block / tree object at the next cell
+ *  - Wall / block / tree / laser object at the next cell
  *  - A perpendicular tunnel between `pos` and the next cell (i.e., the rowArch /
  *    columnArch oriented to block the push direction)
  *
  * Edge arches do NOT back force/build, regardless of their height.
  */
+const SOLID_BACKERS = new Set(['wall', 'block', 'tree', 'laser']);
+
 export function isBacked(level: Level, pos: Position, dir: Direction): boolean {
   const nextPos = getNextPos(pos, dir);
   if (!isInBounds(level, nextPos)) return true;
 
   const nextObj = level.objects[nextPos.row][nextPos.col];
   if (nextObj) {
-    return nextObj.type === 'wall' || nextObj.type === 'block' || nextObj.type === 'tree';
+    return SOLID_BACKERS.has(nextObj.type);
   }
 
   // Check perpendicular tunnel blockage (existing arch-tile semantics): rowArch
